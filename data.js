@@ -95,6 +95,7 @@ window.EC_DATA = {
     { name: "Drew Szuch",          note: "Formula · Endurance",    initials: "DS", img: "assets/face-drew-szuch.jpeg",           programs: ["Formula", "LMP2"] },
     { name: "Alex Berg",           note: "British F4 Race Winner", initials: "AB", img: "assets/face-alex-berg.jpg",             programs: ["GTP", "LMP2"] },
     { name: "Bryson Morris",       note: "IMPC TCR Champion",      initials: "BM", img: "assets/face-bryson-morris.png",         programs: ["Formula"] },
+    { name: "Zach Fourie",         note: "F4 US Driver",           initials: "ZF", img: "assets/face-zach-fourie.webp",          programs: ["Formula"] },
   ],
   events: [
     { mo: "JAN", d: "9–10",  t: "Roar Before the 24",     v: "Daytona International Speedway",  c: "LMP2" },
