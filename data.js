@@ -30,7 +30,7 @@ window.EC_DATA = {
       role: "Founder · Team Principal",
       initials: "MC",
       img: "assets/face-michael-costello.png",
-      bio: "Founder and day-to-day principal of Eclipse. Leads car setup development, roster strategy, and the shift toward IMSA and Global Endurance programs. Drives across GTP, LMP2 and Formula.",
+      bio: "Founder and day-to-day principal of Eclipse. USF Pro 2000 driver in real-world competition. Leads car setup development, roster strategy, and the shift toward IMSA and Global Endurance programs. Drives across GTP, LMP2 and Formula.",
       tint: "purple",
     },
     {
@@ -38,7 +38,7 @@ window.EC_DATA = {
       role: "Co-Founder · Sporting Director",
       initials: "TS",
       img: "assets/face-titus-sherlock.webp",
-      bio: "Co-founded Eclipse alongside Michael in November 2023. Owns sporting regulations, rostering, and driver conduct. Petit Le Mans winner, FSS Drivers' Champion, and FIS race winner behind the wheel.",
+      bio: "Co-founded Eclipse alongside Michael in November 2023. FR Americas Champion in real-world competition. Owns sporting regulations, rostering, and driver conduct. Petit Le Mans winner, FSS Drivers' Champion, and FIS race winner behind the wheel.",
       tint: "cyan",
     },
     {
@@ -56,14 +56,14 @@ window.EC_DATA = {
       role: "Admin · Formula Program",
       initials: "TD",
       img: "assets/face-tanner-defabis.png",
-      bio: "Admin and open-wheel lead. Podium finisher in Formula Indy Series, part of the Indy 500 lineup.",
+      bio: "Admin and open-wheel lead. Freedom 75 winner in real-world competition. Podium finisher in Formula Indy Series, part of the Indy 500 lineup.",
     },
     {
       name: "Jeremy Fairbairn",
       role: "Admin · Endurance Lead",
       initials: "JF",
       img: "assets/face-jeremy-fairbairn.png",
-      bio: "Admin and endurance specialist. Petit Le Mans co-winner, anchoring the long-run program across Daytona 24, Sebring 12, Bathurst and Spa.",
+      bio: "Admin and endurance specialist. British F4 race winner in real-world competition. Petit Le Mans co-winner, anchoring the long-run program across Daytona 24, Sebring 12, Bathurst and Spa.",
     },
     {
       name: "Griffin Yellin",
@@ -93,8 +93,8 @@ window.EC_DATA = {
     { name: "Evagoras Papasavvas", note: "Endurance · GTP",        initials: "EP", img: "assets/face-evagoras-papasavvas.webp",  programs: ["GTP", "LMP2"] },
     { name: "Barrett Wolfe",       note: "Endurance · GT3",        initials: "BW", img: "assets/face-barrett-wolfe.webp",        programs: ["GT3"] },
     { name: "Drew Szuch",          note: "Formula · Endurance",    initials: "DS", img: "assets/face-drew-szuch.jpeg",           programs: ["Formula", "LMP2"] },
-    { name: "Alex Berg",           note: "British F4 Champion",    initials: "AB", img: "assets/face-alex-berg.jpg",             programs: ["GTP", "LMP2"] },
-    { name: "Bryson Morris",       note: "Young Gun · Formula",    initials: "BM", img: "assets/face-bryson-morris.png",         programs: ["Formula"] },
+    { name: "Alex Berg",           note: "British F4 Race Winner", initials: "AB", img: "assets/face-alex-berg.jpg",             programs: ["GTP", "LMP2"] },
+    { name: "Bryson Morris",       note: "IMPC TCR Champion",      initials: "BM", img: "assets/face-bryson-morris.png",         programs: ["Formula"] },
   ],
   events: [
     { mo: "JAN", d: "9–10",  t: "Roar Before the 24",     v: "Daytona International Speedway",  c: "LMP2" },
