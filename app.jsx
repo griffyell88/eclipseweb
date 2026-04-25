@@ -442,6 +442,20 @@ function Programs() {
 }
 
 function Gallery() {
+  const [idx, setIdx] = useState(0);
+  const [paused, setPaused] = useState(false);
+  const total = D.gallery.length;
+
+  useEffect(() => {
+    if (paused) return;
+    const t = setInterval(() => setIdx(i => (i + 1) % total), 5000);
+    return () => clearInterval(t);
+  }, [paused, total]);
+
+  const go = (n) => setIdx(((n % total) + total) % total);
+  const prev = () => go(idx - 1);
+  const next = () => go(idx + 1);
+
   return (
     <section className="section-light gallery-sec" id="gallery" data-screen-label="05b Gallery">
       <div className="wrap">
@@ -452,12 +466,35 @@ function Gallery() {
           </div>
           <div className="tag">From the Garage · 2025 – 2026</div>
         </div>
-        <div className="gallery-grid">
-          {D.gallery.map((g, i) => (
-            <figure className={`gallery-item ${i === 0 ? 'lead' : ''}`} key={i}>
-              <img src={g.img} alt="" loading="lazy" />
-            </figure>
-          ))}
+        <div
+          className="gallery-slideshow"
+          onMouseEnter={() => setPaused(true)}
+          onMouseLeave={() => setPaused(false)}
+        >
+          <div className="slideshow-track">
+            {D.gallery.map((g, i) => (
+              <figure
+                className={`slideshow-slide ${i === idx ? 'active' : ''}`}
+                key={i}
+                aria-hidden={i !== idx}
+              >
+                <img src={g.img} alt="" loading={i === 0 ? 'eager' : 'lazy'} />
+              </figure>
+            ))}
+          </div>
+          <button className="slideshow-arrow prev" onClick={prev} aria-label="Previous">‹</button>
+          <button className="slideshow-arrow next" onClick={next} aria-label="Next">›</button>
+          <div className="slideshow-dots">
+            {D.gallery.map((_, i) => (
+              <button
+                key={i}
+                className={`slideshow-dot ${i === idx ? 'active' : ''}`}
+                onClick={() => go(i)}
+                aria-label={`Go to slide ${i + 1}`}
+              />
+            ))}
+          </div>
+          <div className="slideshow-counter">{String(idx + 1).padStart(2, '0')} / {String(total).padStart(2, '0')}</div>
         </div>
       </div>
     </section>
