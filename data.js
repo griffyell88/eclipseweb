@@ -118,6 +118,9 @@ window.EC_DATA = {
     { img: "assets/media-03.png",               caption: "GTP · NIGHT PACE",              tag: "RACE" },
     { img: "assets/media-02.png",               caption: "GLOBAL ENDURANCE · OCTOBER 2025", tag: "RACE" },
     { img: "assets/media-04.png",               caption: "SEBRING 12 · MARCH 2026",       tag: "RACE" },
+    { img: "assets/media-imola-499p-01.png",    caption: "499P · IMOLA",                  tag: "RACE" },
+    { img: "assets/media-imola-499p-02.png",    caption: "499P · IMOLA",                  tag: "RACE" },
+    { img: "assets/media-april-2026.png",       caption: "APRIL 2026 · ENDURANCE",        tag: "RACE" },
     { img: "assets/media-01.jpg",               caption: "SEPTEMBER 2025 · ENDURANCE",    tag: "RACE" },
   ],
   sponsors: [
