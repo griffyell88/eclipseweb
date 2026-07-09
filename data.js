@@ -15,6 +15,7 @@ window.EC_DATA = {
     { n: "2023",l: "Founded" },
   ],
   trophies: [
+    { year: "2025", title: "Majors 24 Hours of Le Mans", class: "GTP · Hypercar",   drivers: "Sherlock · Papasavvas · Costello · McDougall", img: "assets/win-lemans-majors.png", tag: "GRAND SLAM" },
     { year: "2025", title: "Daytona 24 Winner",        class: "GTP",                drivers: "Moss · Sherlock · Fairbairn · Smartt", img: "assets/win-daytona-24.png",          tag: "SPECIAL EVENT" },
     { year: "2025", title: "Sebring 12 Hour · P1",     class: "GTP",                drivers: "Costello · Sherlock · DeFabis",       img: "assets/trophy-sunset-p1.jpg",        tag: "RACE WIN" },
     { year: "2025", title: "Indy 500 Winner",          class: "Dallara IR-18",      drivers: "Tristan Moss",                        img: "assets/win-indy500-2025.png",        tag: "GRAND SLAM" },
@@ -59,18 +60,18 @@ window.EC_DATA = {
       bio: "Admin and open-wheel lead. Freedom 75 winner in real-world competition. Podium finisher in Formula Indy Series, part of the Indy 500 lineup.",
     },
     {
+      name: "Griffin Yellin",
+      role: "Admin · Setup Engineer",
+      initials: "GY",
+      img: "assets/face-griffin-yellin.jpeg",
+      bio: "Admin and vehicle dynamics lead. Co-building Eclipse's upcoming AI-assisted setup platform with Michael and Tristan.",
+    },
+    {
       name: "Jeremy Fairbairn",
       role: "Admin · Endurance Lead",
       initials: "JF",
       img: "assets/face-jeremy-fairbairn.png",
       bio: "Admin and endurance specialist. British F4 race winner in real-world competition. Petit Le Mans co-winner, anchoring the long-run program across Daytona 24, Sebring 12, Bathurst and Spa.",
-    },
-    {
-      name: "Griffin Yellin",
-      role: "Setup Engineer",
-      initials: "GY",
-      img: "assets/face-griffin-yellin.jpeg",
-      bio: "Vehicle dynamics lead. Co-building Eclipse's upcoming AI-assisted setup platform with Michael and Tristan.",
     },
     {
       name: "Tristan Moss",
@@ -94,7 +95,7 @@ window.EC_DATA = {
     { name: "Barrett Wolfe",       note: "Endurance · GT3",        initials: "BW", img: "assets/face-barrett-wolfe.webp",        programs: ["GT3"] },
     { name: "Drew Szuch",          note: "Formula · Endurance",    initials: "DS", img: "assets/face-drew-szuch.jpeg",           programs: ["Formula", "LMP2"] },
     { name: "Alex Berg",           note: "British F4 Race Winner", initials: "AB", img: "assets/face-alex-berg.jpg",             programs: ["GTP", "LMP2"] },
-    { name: "Bryson Morris",       note: "IMPC TCR Champion",      initials: "BM", img: "assets/face-bryson-morris.png",         programs: ["Formula"] },
+    { name: "Bryson Morris",       note: "IMPC Multi-Race Winner", initials: "BM", img: "assets/face-bryson-morris.png",         programs: ["Formula"] },
     { name: "Zach Fourie",         note: "F4 US Driver",           initials: "ZF", img: "assets/face-zach-fourie.webp",          programs: ["Formula"] },
   ],
   events: [

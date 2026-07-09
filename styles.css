@@ -108,6 +108,104 @@ section { padding: var(--ec-density-pad) 0; position: relative; }
   background: rgba(10,10,12,0.55);
   border-bottom: 1px solid rgba(255,255,255,0.06);
 }
+/* When ribbon is present, nudge nav down */
+body:has(.ribbon) .nav { top: 40px; }
+body:has(.ribbon) .hero { padding-top: 40px; }
+
+/* ============ LATEST RESULT RIBBON ============ */
+.ribbon {
+  position: fixed; top: 0; left: 0; right: 0; z-index: 60;
+  background: linear-gradient(90deg, var(--ec-accent) 0%, var(--ec-accent-2) 100%);
+  color: #fff;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  box-shadow: 0 2px 12px rgba(0,0,0,0.35);
+  animation: ribbonSlide .5s ease-out;
+}
+@keyframes ribbonSlide {
+  from { transform: translateY(-100%); }
+  to { transform: translateY(0); }
+}
+.ribbon-inner {
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 0 48px 0 24px;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+.rb-flag {
+  font-family: 'Saira Condensed', sans-serif;
+  font-style: italic;
+  font-weight: 800;
+  font-size: 12px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  background: rgba(0,0,0,0.35);
+  padding: 4px 10px;
+  border: 1px solid rgba(255,255,255,0.25);
+  flex-shrink: 0;
+}
+.rb-msg {
+  font-family: 'Inter', sans-serif;
+  font-size: 13px;
+  letter-spacing: 0.02em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
+  min-width: 0;
+}
+.rb-msg strong {
+  font-family: 'Saira Condensed', sans-serif;
+  font-style: italic;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin-right: 4px;
+}
+.rb-sep { opacity: 0.55; margin: 0 8px; }
+.rb-cta {
+  font-family: 'Saira Condensed', sans-serif;
+  font-style: italic;
+  font-weight: 700;
+  font-size: 12px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: #fff;
+  padding: 4px 12px;
+  border: 1px solid rgba(255,255,255,0.6);
+  transition: background .2s, border-color .2s;
+  flex-shrink: 0;
+}
+.rb-cta:hover { background: rgba(0,0,0,0.25); border-color: #fff; }
+.rb-close {
+  background: transparent;
+  border: 0;
+  color: #fff;
+  font-size: 22px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 4px 8px;
+  opacity: 0.75;
+  transition: opacity .15s;
+  flex-shrink: 0;
+}
+.rb-close:hover { opacity: 1; }
+
+@media (max-width: 800px) {
+  .ribbon { height: auto; padding: 8px 0; }
+  .ribbon-inner { padding: 0 12px; gap: 10px; flex-wrap: wrap; }
+  .rb-msg { white-space: normal; font-size: 12px; flex: 1 1 100%; order: 3; }
+  .rb-msg strong { display: block; }
+  .rb-sep { display: none; }
+  .rb-flag { font-size: 10px; padding: 3px 8px; }
+  .rb-cta { font-size: 10px; padding: 3px 8px; }
+  body:has(.ribbon) .nav { top: 76px; }
+  body:has(.ribbon) .hero { padding-top: 76px; }
+}
 .nav .brand { display: flex; align-items: center; gap: 12px; }
 .nav .brand img { height: 28px; }
 .nav .brand .wm {
@@ -1074,4 +1172,130 @@ section { padding: var(--ec-density-pad) 0; position: relative; }
   .hero-tickers { grid-template-columns: 1fr 1fr; }
   .stat-cell { padding: 20px 14px; }
   .stat-cell .stat-n { font-size: 36px; }
+}
+
+/* ============ MEDIA KIT BUTTON ============ */
+.sponsors-head-right {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 12px;
+}
+.media-kit-btn {
+  font-family: 'Saira Condensed', sans-serif;
+  font-style: italic;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  font-size: 12px;
+  padding: 10px 18px;
+  border: 1px solid var(--ec-accent);
+  color: var(--ec-accent);
+  background: transparent;
+  transition: background .2s, color .2s;
+  white-space: nowrap;
+}
+.media-kit-btn:hover { background: var(--ec-accent); color: #fff; }
+
+@media (max-width: 800px) {
+  .sponsors-head-right { align-items: flex-start; }
+}
+
+/* ============ FIS SPOTTER GUIDE ============ */
+.spotter-sec { padding: var(--ec-density-pad) 0; }
+.spotter-frame {
+  position: relative;
+  margin-top: 24px;
+  background: var(--ec-bg-2);
+  border: 1px solid var(--ec-line);
+  padding: 24px;
+  overflow: hidden;
+  transition: padding .3s ease;
+}
+.spotter-frame img {
+  display: block;
+  width: 100%;
+  max-width: 900px;
+  margin: 0 auto;
+  cursor: zoom-in;
+  transition: transform .35s ease;
+  filter: drop-shadow(0 20px 40px rgba(0,0,0,0.5));
+}
+.spotter-frame[data-zoom="true"] {
+  padding: 12px;
+  background: rgba(0,0,0,0.92);
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  overflow: auto;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+}
+.spotter-frame[data-zoom="true"] img {
+  max-width: none;
+  width: auto;
+  height: auto;
+  cursor: zoom-out;
+}
+.spotter-zoom-btn {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  background: rgba(0,0,0,0.6);
+  color: #fff;
+  border: 1px solid var(--ec-line);
+  padding: 8px 14px;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: background .2s, border-color .2s;
+  z-index: 210;
+}
+.spotter-zoom-btn:hover { background: var(--ec-accent); border-color: var(--ec-accent); }
+.spotter-foot {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 20px;
+  margin-top: 20px;
+  padding-top: 20px;
+  border-top: 1px solid var(--ec-line);
+  flex-wrap: wrap;
+}
+.spotter-legend { display: flex; gap: 24px; flex-wrap: wrap; }
+.spotter-legend .lg-item {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ec-mute);
+}
+.spotter-legend .lg-item em {
+  font-style: normal;
+  font-weight: 700;
+  color: var(--ec-accent);
+  margin-right: 6px;
+}
+.spotter-dl {
+  font-family: 'Saira Condensed', sans-serif;
+  font-style: italic;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-size: 13px;
+  color: var(--ec-light);
+  padding: 10px 18px;
+  border: 1px solid var(--ec-line);
+  transition: background .2s, color .2s, border-color .2s;
+}
+.spotter-dl:hover { background: var(--ec-accent); border-color: var(--ec-accent); color: #fff; }
+
+@media (max-width: 800px) {
+  .spotter-frame { padding: 14px; }
+  .spotter-zoom-btn { top: 10px; right: 10px; padding: 6px 10px; font-size: 10px; }
+  .spotter-foot { flex-direction: column; align-items: flex-start; gap: 14px; }
+  .spotter-legend { gap: 14px; }
 }

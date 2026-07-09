@@ -68,6 +68,31 @@ function TweaksPanel({ tw, open, setOpen }) {
   );
 }
 
+function LatestResultRibbon() {
+  const [dismissed, setDismissed] = useState(() => {
+    return localStorage.getItem('ec-ribbon-dismissed') === 'lemans-majors-2025';
+  });
+  if (dismissed) return null;
+  const dismiss = () => {
+    localStorage.setItem('ec-ribbon-dismissed', 'lemans-majors-2025');
+    setDismissed(true);
+  };
+  return (
+    <div className="ribbon">
+      <div className="ribbon-inner">
+        <span className="rb-flag">JUST WON</span>
+        <span className="rb-msg">
+          <strong>Majors 24 Hours of Le Mans</strong>
+          <span className="rb-sep">·</span>
+          Sherlock · Papasavvas · Costello · McDougall
+        </span>
+        <a className="rb-cta" href="#accolades">View trophy →</a>
+        <button className="rb-close" aria-label="Dismiss" onClick={dismiss}>×</button>
+      </div>
+    </div>
+  );
+}
+
 function Nav() {
   const [menuOpen, setMenuOpen] = useState(false);
   const close = () => setMenuOpen(false);
@@ -287,6 +312,51 @@ function Roster() {
               </div>
             </div>
           ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function SpotterGuide() {
+  const [zoom, setZoom] = useState(false);
+  return (
+    <section className="section-dark spotter-sec" id="spotter" data-screen-label="03b Spotter">
+      <div className="wrap">
+        <div className="sec-head">
+          <div>
+            <div className="num">/ 03.5</div>
+            <h2>FIS Spotter Guide</h2>
+          </div>
+          <div className="tag">Formula Indy Series · Season 9</div>
+        </div>
+
+        <div className="tier-head">
+          <span className="idx">/ KNOW THE FLEET</span>
+          <h3>Six Eclipse cars on the grid</h3>
+          <span className="line" />
+        </div>
+
+        <div className="spotter-frame" data-zoom={zoom}>
+          <img
+            src="assets/fis-s9-spotter-guide.png"
+            alt="Eclipse Competition — FIS Season 9 Spotter Guide"
+            onClick={() => setZoom(!zoom)}
+          />
+          <button className="spotter-zoom-btn" onClick={() => setZoom(!zoom)}>
+            {zoom ? 'Close ×' : 'Tap to zoom ⤢'}
+          </button>
+        </div>
+
+        <div className="spotter-foot">
+          <div className="spotter-legend">
+            <span className="lg-item"><em>Purple / White</em> Main Roster</span>
+            <span className="lg-item"><em>Blue</em> Eclipse Blue</span>
+            <span className="lg-item"><em>Academy</em> Development</span>
+          </div>
+          <a className="spotter-dl" href="assets/fis-s9-spotter-guide.png" download>
+            Download full-size ↓
+          </a>
         </div>
       </div>
     </section>
@@ -526,7 +596,12 @@ function Sponsors() {
             <div className="num">/ 07</div>
             <h2>Partners &amp; Sponsors</h2>
           </div>
-          <div className="tag">Running with us in 2026</div>
+          <div className="sponsors-head-right">
+            <div className="tag">Running with us in 2026</div>
+            <a href="assets/Eclipse_Media_Kit_2026.pdf" download className="media-kit-btn">
+              Media Kit ↓
+            </a>
+          </div>
         </div>
         <div className="sponsors-grid">
           {D.sponsors.map((s, i) => (
@@ -585,6 +660,7 @@ function Footer() {
               <li><a href="https://instagram.com/eclipse_competition">Instagram · @eclipse_competition</a></li>
               <li><a href="#join">Join Academy</a></li>
               <li><a href="#sponsors">Partner with Us</a></li>
+              <li><a href="assets/Eclipse_Media_Kit_2026.pdf" download>Download Media Kit ↓</a></li>
             </ul>
           </div>
         </div>
@@ -615,11 +691,13 @@ function App() {
 
   return (
     <>
+      <LatestResultRibbon />
       <Nav />
       <Hero />
       <MarqueeStrip />
       <Accolades />
       <Roster />
+      <SpotterGuide />
       <Events />
       <Programs />
       <Gallery />
