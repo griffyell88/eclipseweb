@@ -187,7 +187,7 @@ function MarqueeStrip() {
 
 function Accolades() {
   return (
-    <section className="section-light" id="accolades" data-screen-label="02 Accolades">
+    <section className="section-dark" id="accolades" data-screen-label="02 Accolades">
       <div className="wrap">
         <div className="sec-head">
           <div>
@@ -210,11 +210,11 @@ function Accolades() {
             <div className="num">/ 02.1</div>
             <h2>Trophy Cabinet</h2>
           </div>
-          <div className="tag">Select Highlights · 2025</div>
+          <div className="tag">Select Highlights · 2025–2026</div>
         </div>
         <div className="trophies">
           {D.trophies.map((t, i) => (
-            <div className="trophy" key={i}>
+            <div className={"trophy" + (t.featured ? " trophy--wide" : "")} key={i}>
               <img src={t.img} alt="" />
               <div className="t-overlay" />
               <div className="t-year">{t.year} · {t.class}</div>
@@ -233,7 +233,7 @@ function Accolades() {
 
 function Roster() {
   return (
-    <section className="section-light" id="team" data-screen-label="03 Team">
+    <section className="section-dark" id="team" data-screen-label="03 Team">
       <div className="wrap">
         <div className="sec-head">
           <div>
@@ -333,7 +333,7 @@ function SpotterGuide() {
 
         <div className="tier-head">
           <span className="idx">/ KNOW THE FLEET</span>
-          <h3>Six Eclipse cars on the grid</h3>
+          <h3>Twelve Eclipse cars on the grid</h3>
           <span className="line" />
         </div>
 
@@ -350,9 +350,9 @@ function SpotterGuide() {
 
         <div className="spotter-foot">
           <div className="spotter-legend">
-            <span className="lg-item"><em>Purple / White</em> Main Roster</span>
-            <span className="lg-item"><em>Blue</em> Eclipse Blue</span>
-            <span className="lg-item"><em>Academy</em> Development</span>
+            <span className="lg-item"><em>12 cars</em> across the grid</span>
+            <span className="lg-item"><em>4 teams</em> Main · Blue · White · Purple</span>
+            <span className="lg-item"><em>2 teams</em> Academy · Academy White</span>
           </div>
           <a className="spotter-dl" href="assets/fis-s9-spotter-guide.png" download>
             Download full-size ↓
@@ -527,7 +527,7 @@ function Gallery() {
   const next = () => go(idx + 1);
 
   return (
-    <section className="section-light gallery-sec" id="gallery" data-screen-label="05b Gallery">
+    <section className="section-dark gallery-sec" id="gallery" data-screen-label="05b Gallery">
       <div className="wrap">
         <div className="sec-head">
           <div>
@@ -589,7 +589,7 @@ function Academy() {
 
 function Sponsors() {
   return (
-    <section className="section-light" id="sponsors" data-screen-label="07 Sponsors">
+    <section className="section-dark" id="sponsors" data-screen-label="07 Sponsors">
       <div className="wrap">
         <div className="sec-head">
           <div>

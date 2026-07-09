@@ -15,7 +15,9 @@ window.EC_DATA = {
     { n: "2023",l: "Founded" },
   ],
   trophies: [
+    { year: "2026", title: "FIS Round 1 · St. Petersburg · P3", class: "Formula Indy Series", drivers: "Michael Costello", img: "assets/win-fis-r1-stpete-p3.png", tag: "LATEST RESULT", featured: true },
     { year: "2025", title: "Majors 24 Hours of Le Mans", class: "GTP · Hypercar",   drivers: "Sherlock · Papasavvas · Costello · McDougall", img: "assets/win-lemans-majors.png", tag: "GRAND SLAM" },
+    { year: "2026", title: "FSS Champion",             class: "Formula Super Series", drivers: "Michael Costello",                  img: "assets/Michael Cootmallo Cover.jpg", tag: "CHAMPIONSHIP" },
     { year: "2025", title: "Daytona 24 Winner",        class: "GTP",                drivers: "Moss · Sherlock · Fairbairn · Smartt", img: "assets/win-daytona-24.png",          tag: "SPECIAL EVENT" },
     { year: "2025", title: "Sebring 12 Hour · P1",     class: "GTP",                drivers: "Costello · Sherlock · DeFabis",       img: "assets/trophy-sunset-p1.jpg",        tag: "RACE WIN" },
     { year: "2025", title: "Indy 500 Winner",          class: "Dallara IR-18",      drivers: "Tristan Moss",                        img: "assets/win-indy500-2025.png",        tag: "GRAND SLAM" },
@@ -24,6 +26,7 @@ window.EC_DATA = {
     { year: "2025", title: "FIS Team Champions",       class: "Formula Indy Series",drivers: "Sherlock · DeFabis · Costello",       img: "assets/win-double-podium.png",       tag: "CHAMPIONSHIP" },
     { year: "2025", title: "FSS Teams Champions",      class: "Formula Sim Series", drivers: "8 combined wins",                     img: "assets/win-fss-champions.jpg",       tag: "CHAMPIONSHIP" },
     { year: "2025", title: "FSS Drivers' Champion",    class: "Formula Sim Series", drivers: "Titus Sherlock",                      img: "assets/trophy-fss-drivers-champ.jpg",tag: "CHAMPIONSHIP" },
+    { year: "2025", title: "Formula Super Series Champion", class: "Formula Super Series", drivers: "Michael Costello",             img: "assets/win-fss-champion-costello.png", tag: "CHAMPIONSHIP" },
   ],
   owners: [
     {
@@ -97,6 +100,7 @@ window.EC_DATA = {
     { name: "Alex Berg",           note: "British F4 Race Winner", initials: "AB", img: "assets/face-alex-berg.jpg",             programs: ["GTP", "LMP2"] },
     { name: "Bryson Morris",       note: "IMPC Multi-Race Winner", initials: "BM", img: "assets/face-bryson-morris.png",         programs: ["Formula"] },
     { name: "Zach Fourie",         note: "F4 US Driver",           initials: "ZF", img: "assets/face-zach-fourie.webp",          programs: ["Formula"] },
+    { name: "Tyke Durst",          note: "USF Pro 2000 Driver",    initials: "TD", img: "assets/face-tyke-durst.png",            programs: ["Formula", "LMP2"] },
   ],
   events: [
     { mo: "JAN", d: "9–10",  t: "Roar Before the 24",     v: "Daytona International Speedway",  c: "LMP2" },
