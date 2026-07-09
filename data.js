@@ -26,7 +26,6 @@ window.EC_DATA = {
     { year: "2025", title: "FIS Team Champions",       class: "Formula Indy Series",drivers: "Sherlock · DeFabis · Costello",       img: "assets/win-double-podium.png",       tag: "CHAMPIONSHIP" },
     { year: "2025", title: "FSS Teams Champions",      class: "Formula Sim Series", drivers: "8 combined wins",                     img: "assets/win-fss-champions.jpg",       tag: "CHAMPIONSHIP" },
     { year: "2025", title: "FSS Drivers' Champion",    class: "Formula Sim Series", drivers: "Titus Sherlock",                      img: "assets/trophy-fss-drivers-champ.jpg",tag: "CHAMPIONSHIP" },
-    { year: "2025", title: "Formula Super Series Champion", class: "Formula Super Series", drivers: "Michael Costello",             img: "assets/win-fss-champion-costello.png", tag: "CHAMPIONSHIP" },
   ],
   owners: [
     {
