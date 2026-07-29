@@ -69,12 +69,15 @@ function TweaksPanel({ tw, open, setOpen }) {
 }
 
 function LatestResultRibbon() {
-  const [dismissed, setDismissed] = useState(() => {
-    return localStorage.getItem('ec-ribbon-dismissed') === 'lemans-majors-2025';
-  });
+  // The dismiss key is versioned by D.latest.id, so bumping the result in
+  // data.js re-shows the ribbon to people who dismissed the previous one.
+  const key = 'ec-ribbon-dismissed';
+  const [dismissed, setDismissed] = useState(
+    () => localStorage.getItem(key) === D.latest.id
+  );
   if (dismissed) return null;
   const dismiss = () => {
-    localStorage.setItem('ec-ribbon-dismissed', 'lemans-majors-2025');
+    localStorage.setItem(key, D.latest.id);
     setDismissed(true);
   };
   return (
@@ -82,9 +85,9 @@ function LatestResultRibbon() {
       <div className="ribbon-inner">
         <span className="rb-flag">JUST WON</span>
         <span className="rb-msg">
-          <strong>Majors 24 Hours of Le Mans</strong>
+          <strong>{D.latest.title}</strong>
           <span className="rb-sep">·</span>
-          Sherlock · Papasavvas · Costello · McDougall
+          {D.latest.detail}
         </span>
         <a className="rb-cta" href="#accolades">View trophy →</a>
         <button className="rb-close" aria-label="Dismiss" onClick={dismiss}>×</button>
@@ -96,10 +99,19 @@ function LatestResultRibbon() {
 function Nav() {
   const [menuOpen, setMenuOpen] = useState(false);
   const close = () => setMenuOpen(false);
+
+  // Escape closes the mobile menu
+  useEffect(() => {
+    if (!menuOpen) return;
+    const onKey = (e) => { if (e.key === 'Escape') setMenuOpen(false); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [menuOpen]);
+
   return (
     <nav className="nav" data-menu-open={menuOpen}>
       <a className="brand" href="#top" onClick={close}>
-        <img src="assets/icon-white.png" alt="" />
+        <img src="assets/icon-white.png" alt="" width="28" height="28" />
         <span className="wm">ECLIPSE <span>COMPETITION</span></span>
       </a>
       <button
@@ -113,10 +125,11 @@ function Nav() {
       <ul data-open={menuOpen}>
         <li><a href="#team" onClick={close}>Team</a></li>
         <li><a href="#accolades" onClick={close}>Accolades</a></li>
+        <li><a href="#spotter" onClick={close}>Spotter Guide</a></li>
         <li><a href="#events" onClick={close}>Events</a></li>
         <li><a href="#programs" onClick={close}>Programs</a></li>
         <li><a href="#gallery" onClick={close}>Media</a></li>
-        <li><a href="#sponsors" onClick={close}>Sponsors</a></li>
+        <li><a href="#contact" onClick={close}>Partner</a></li>
         <li className="nav-mobile-cta"><a href="#join" onClick={close}>Join the Team</a></li>
       </ul>
       <a className="cta" href="#join">Join the Team</a>
@@ -149,7 +162,7 @@ function Hero() {
         </div>
         <div className="hero-tickers">
           <div className="hero-ticker"><div className="n"><em>10+</em></div><div className="l">Endurance Wins</div></div>
-          <div className="hero-ticker"><div className="n"><em>9</em></div><div className="l">Special Events '25</div></div>
+          <div className="hero-ticker"><div className="n"><em>9</em></div><div className="l">Special Event Wins</div></div>
           <div className="hero-ticker"><div className="n"><em>3</em></div><div className="l">Formula Championships</div></div>
           <div className="hero-ticker"><div className="n"><em>5K+</em></div><div className="l">Avg iRating</div></div>
         </div>
@@ -194,7 +207,7 @@ function Accolades() {
             <div className="num">/ 02</div>
             <h2>By the Numbers</h2>
           </div>
-          <div className="tag">Updated Apr 2026</div>
+          <div className="tag">Updated Jul 2026</div>
         </div>
         <div className="stats-grid">
           {D.stats.map((s, i) => (
@@ -214,8 +227,17 @@ function Accolades() {
         </div>
         <div className="trophies">
           {D.trophies.map((t, i) => (
-            <div className={"trophy" + (t.featured ? " trophy--wide" : "")} key={i}>
-              <img src={t.img} alt="" />
+            <div
+              className={"trophy" + (t.size ? " trophy--" + t.size : "")}
+              key={t.title + t.year}
+            >
+              <img
+                src={t.img}
+                alt={`${t.title} — ${t.class}, ${t.drivers}`}
+                loading={i === 0 ? 'eager' : 'lazy'}
+                decoding="async"
+                style={t.pos ? { objectPosition: t.pos } : undefined}
+              />
               <div className="t-overlay" />
               <div className="t-year">{t.year} · {t.class}</div>
               <div className="t-meta">
@@ -253,7 +275,7 @@ function Roster() {
             <div className="owner-card" key={i} data-tint={o.tint}>
               <div className="owner-avatar">
                 {o.img ? (
-                  <img src={o.img} alt={o.name} />
+                  <img src={o.img} alt={o.name} loading="lazy" decoding="async" />
                 ) : (
                   <>
                     <span className="ini">{o.initials}</span>
@@ -279,7 +301,7 @@ function Roster() {
           {D.staff.map((s, i) => (
             <div className="staff-card" key={i}>
               <div className="staff-ini">
-                {s.img ? <img src={s.img} alt={s.name} /> : s.initials}
+                {s.img ? <img src={s.img} alt={s.name} loading="lazy" decoding="async" /> : s.initials}
               </div>
               <div>
                 <div className="sc-name">{s.name}</div>
@@ -299,7 +321,7 @@ function Roster() {
           {D.drivers.map((d, i) => (
             <div className="driver-card" key={i}>
               <div className="driver-avatar">
-                {d.img && <img src={d.img} alt={d.name} />}
+                {d.img && <img src={d.img} alt={d.name} loading="lazy" decoding="async" />}
                 <span className="driver-num">#{String(i + 1).padStart(2,'0')}</span>
                 {!d.img && <span className="ini">{d.initials}</span>}
               </div>
@@ -338,11 +360,18 @@ function SpotterGuide() {
         </div>
 
         <div className="spotter-frame" data-zoom={zoom}>
-          <img
-            src="assets/fis-s9-spotter-guide.png"
-            alt="Eclipse Competition — FIS Season 9 Spotter Guide"
+          <button
+            className="spotter-img-btn"
             onClick={() => setZoom(!zoom)}
-          />
+            aria-label={zoom ? 'Zoom out of the spotter guide' : 'Zoom into the spotter guide'}
+          >
+            <img
+              src="assets/fis-s9-spotter-guide.webp"
+              alt="Eclipse Competition — FIS Season 9 Spotter Guide"
+              loading="lazy"
+              decoding="async"
+            />
+          </button>
           <button className="spotter-zoom-btn" onClick={() => setZoom(!zoom)}>
             {zoom ? 'Close ×' : 'Tap to zoom ⤢'}
           </button>
@@ -368,13 +397,15 @@ function Events() {
   const monthOrder = { JAN:1, FEB:2, MAR:3, APR:4, MAY:5, JUN:6, "JUN/JUL":6, JUL:7, AUG:8, SEP:9, OCT:10, NOV:11, DEC:12 };
   const now = new Date();
   const today = { m: now.getMonth() + 1, d: now.getDate() };
-  const parseStart = (ev) => {
+  // Use the END of a multi-day event so a race weekend in progress still counts
+  // as upcoming instead of vanishing on its first day.
+  const parseEnd = (ev) => {
     const m = monthOrder[ev.mo] || 1;
-    const dm = (ev.d.match(/\d+/) || [1])[0];
-    return { m, d: parseInt(dm, 10) };
+    const nums = ev.d.match(/\d+/g) || ['1'];
+    return { m, d: parseInt(nums[nums.length - 1], 10) };
   };
   let upcoming = D.events
-    .map(ev => ({ ev, s: parseStart(ev) }))
+    .map(ev => ({ ev, s: parseEnd(ev) }))
     .filter(({ s }) => s.m > today.m || (s.m === today.m && s.d >= today.d))
     .slice(0, 3)
     .map(x => x.ev);
@@ -483,7 +514,7 @@ function Programs() {
           </div>
           <div className="tag">Coming Soon</div>
         </div>
-        <div className="setup-teaser">
+        <div className="setup-teaser setup-teaser--solo">
           <div className="st-left">
             <div className="st-eyebrow">/ IN DEVELOPMENT</div>
             <div className="st-title">Eclipse<br/>Setup Shop</div>
@@ -491,19 +522,6 @@ function Programs() {
               A setup shop where we build, share and sell setups honed by our own drivers. Race-proven across GTP, LMP2, GT3 and Formula — with an AI-assisted setup tool in development by our engineering group.
             </p>
             <span className="st-badge">Launching 2026</span>
-          </div>
-          <div className="st-right">
-            <div className="telemetry">
-              <h5>// PREVIEW · GTP · DAYTONA ROAD</h5>
-              <div className="tl-row"><span>FRONT ARB</span><span>12</span></div>
-              <div className="tl-row"><span>REAR ARB</span><span>8</span></div>
-              <div className="tl-row"><span>TIRE PRESS F/R</span><span>138 / 132 kPa</span></div>
-              <div className="tl-row"><span>RIDE HEIGHT F/R</span><span>48 / 64 mm</span></div>
-              <div className="tl-row"><span>BRAKE BIAS</span><span>54.5 %</span></div>
-              <div className="tl-row"><span>DIFF ENTRY / MID</span><span>45 / 35</span></div>
-              <div className="tl-row"><span>FUEL / STINT</span><span>78 L</span></div>
-              <div className="tl-row" style={{ borderBottom: 'none' }}><span>VALIDATED BY</span><span>G.YELLIN</span></div>
-            </div>
           </div>
         </div>
       </div>
@@ -526,6 +544,13 @@ function Gallery() {
   const prev = () => go(idx - 1);
   const next = () => go(idx + 1);
 
+  const onKeyDown = (e) => {
+    if (e.key === 'ArrowLeft') { e.preventDefault(); prev(); }
+    if (e.key === 'ArrowRight') { e.preventDefault(); next(); }
+  };
+
+  const current = D.gallery[idx];
+
   return (
     <section className="section-dark gallery-sec" id="gallery" data-screen-label="05b Gallery">
       <div className="wrap">
@@ -540,6 +565,13 @@ function Gallery() {
           className="gallery-slideshow"
           onMouseEnter={() => setPaused(true)}
           onMouseLeave={() => setPaused(false)}
+          onFocus={() => setPaused(true)}
+          onBlur={() => setPaused(false)}
+          onKeyDown={onKeyDown}
+          tabIndex={0}
+          role="region"
+          aria-roledescription="carousel"
+          aria-label="Eclipse Competition media gallery"
         >
           <div className="slideshow-track">
             {D.gallery.map((g, i) => (
@@ -548,12 +580,28 @@ function Gallery() {
                 key={i}
                 aria-hidden={i !== idx}
               >
-                <img src={g.img} alt="" loading={i === 0 ? 'eager' : 'lazy'} />
+                <img
+                  src={g.img}
+                  alt={g.caption}
+                  loading={i === 0 ? 'eager' : 'lazy'}
+                  decoding="async"
+                />
               </figure>
             ))}
           </div>
+          <figcaption className="slideshow-cap">
+            <span className="slideshow-tag">{current.tag}</span>
+            <span className="slideshow-text">{current.caption}</span>
+          </figcaption>
           <button className="slideshow-arrow prev" onClick={prev} aria-label="Previous">‹</button>
           <button className="slideshow-arrow next" onClick={next} aria-label="Next">›</button>
+          <button
+            className="slideshow-pause"
+            onClick={() => setPaused(p => !p)}
+            aria-label={paused ? 'Resume slideshow' : 'Pause slideshow'}
+          >
+            {paused ? '▶' : '❚❚'}
+          </button>
           <div className="slideshow-dots">
             {D.gallery.map((_, i) => (
               <button
@@ -561,6 +609,7 @@ function Gallery() {
                 className={`slideshow-dot ${i === idx ? 'active' : ''}`}
                 onClick={() => go(i)}
                 aria-label={`Go to slide ${i + 1}`}
+                aria-current={i === idx}
               />
             ))}
           </div>
@@ -579,7 +628,7 @@ function Academy() {
         <h2>Think you've got the <em>pace</em>?</h2>
         <p>Eclipse Academy is our development pipeline. We're running two Academy teams in 2026 alongside the main roster — if you show up for testing, vote on check-in, and bring the right attitude, there's a seat for you.</p>
         <div className="cta-row">
-          <a href="https://discord.gg/CBtQMmcksE" target="_blank" rel="noopener noreferrer" className="btn btn-primary">Join our Discord →</a>
+          <a href={D.brand.discord} target="_blank" rel="noopener noreferrer" className="btn btn-primary">Join our Discord →</a>
           <a href="#team" className="btn">Meet the team</a>
         </div>
       </div>
@@ -609,7 +658,7 @@ function Sponsors() {
               <div className="sp-tag">// {s.type}</div>
               {s.logo ? (
                 <div className="sp-logo-wrap">
-                  <img src={s.logo} alt={s.name} className="sp-logo" />
+                  <img src={s.logo} alt={s.name} className="sp-logo" loading="lazy" decoding="async" />
                   <div className="sp-sub">{s.name}</div>
                 </div>
               ) : (
@@ -626,13 +675,73 @@ function Sponsors() {
   );
 }
 
+function Contact() {
+  return (
+    <section className="contact-sec" id="contact" data-screen-label="08 Contact">
+      <div className="wrap">
+        <div className="sec-head">
+          <div>
+            <div className="num">/ 08</div>
+            <h2>Partner With Us</h2>
+          </div>
+          <div className="tag">Sponsorship · Media · Collaboration</div>
+        </div>
+
+        <div className="contact-grid">
+          <div className="contact-pitch">
+            <p className="ct-lead">
+              Eclipse runs a full endurance, Formula and GT program across iRacing's
+              biggest events — Daytona, Sebring, Spa, the Indy 500 and Petit Le Mans —
+              in front of an audience that actually watches sports car racing.
+            </p>
+            <p className="ct-body">
+              We work with brands on livery placement, broadcast presence, content
+              partnerships and charity activations. If you want the numbers, the media
+              kit has the full breakdown. If you'd rather just talk, the Discord is the
+              fastest way to reach the people who make decisions.
+            </p>
+            <div className="ct-points">
+              <div className="ct-point"><em>14</em><span>Events on the 2026 calendar</span></div>
+              <div className="ct-point"><em>10</em><span>Partners &amp; charities running with us</span></div>
+              <div className="ct-point"><em>5K+</em><span>Average team iRating</span></div>
+            </div>
+          </div>
+
+          <div className="contact-actions">
+            <div className="ca-head">/ GET IN TOUCH</div>
+            {D.brand.email ? (
+              <a className="ca-btn ca-btn--primary" href={`mailto:${D.brand.email}?subject=Eclipse%20Competition%20—%20Partnership%20Enquiry`}>
+                <span className="ca-label">Email the team</span>
+                <span className="ca-val">{D.brand.email}</span>
+              </a>
+            ) : null}
+            <a className={"ca-btn" + (D.brand.email ? "" : " ca-btn--primary")}
+               href={D.brand.discord} target="_blank" rel="noopener noreferrer">
+              <span className="ca-label">Discord</span>
+              <span className="ca-val">Message an admin directly</span>
+            </a>
+            <a className="ca-btn" href={D.brand.igUrl} target="_blank" rel="noopener noreferrer">
+              <span className="ca-label">Instagram</span>
+              <span className="ca-val">{D.brand.ig}</span>
+            </a>
+            <a className="ca-btn" href="assets/Eclipse_Media_Kit_2026.pdf" download>
+              <span className="ca-label">Media Kit 2026</span>
+              <span className="ca-val">Download the PDF ↓</span>
+            </a>
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
 function Footer() {
   return (
     <footer className="footer">
       <div className="wrap">
         <div className="footer-main">
           <div className="footer-brand">
-            <img src="assets/logo-white.png" alt="Eclipse Competition" />
+            <img src="assets/logo-white.png" alt="Eclipse Competition" loading="lazy" />
             <p>Premier iRacing endurance team. Founded November 2023. Founder-led, one roster, a garage full of purple.</p>
           </div>
           <div>
@@ -640,26 +749,27 @@ function Footer() {
             <ul>
               <li><a href="#team">Roster</a></li>
               <li><a href="#accolades">Results</a></li>
+              <li><a href="#spotter">Spotter Guide</a></li>
               <li><a href="#programs">Programs</a></li>
               <li><a href="#join">Academy</a></li>
             </ul>
           </div>
           <div>
-            <h6>Calendar</h6>
+            <h6>Racing</h6>
             <ul>
-              <li><a href="#events">2026 Special Events</a></li>
-              <li><a href="#events">IMSA Endurance</a></li>
-              <li><a href="#events">Global Endurance</a></li>
-              <li><a href="#events">Formula Series</a></li>
+              <li><a href="#events">2026 Calendar</a></li>
+              <li><a href="#programs">Endurance Program</a></li>
+              <li><a href="#programs">Formula Program</a></li>
+              <li><a href="#gallery">Media Gallery</a></li>
             </ul>
           </div>
           <div>
             <h6>Connect</h6>
             <ul>
-              <li><a href="https://discord.gg/CBtQMmcksE" target="_blank" rel="noopener noreferrer">Discord · Join the Server</a></li>
-              <li><a href="https://instagram.com/eclipse_competition">Instagram · @eclipse_competition</a></li>
+              <li><a href={D.brand.discord} target="_blank" rel="noopener noreferrer">Discord · Join the Server</a></li>
+              <li><a href={D.brand.igUrl} target="_blank" rel="noopener noreferrer">Instagram · {D.brand.ig}</a></li>
               <li><a href="#join">Join Academy</a></li>
-              <li><a href="#sponsors">Partner with Us</a></li>
+              <li><a href="#contact">Partner with Us</a></li>
               <li><a href="assets/Eclipse_Media_Kit_2026.pdf" download>Download Media Kit ↓</a></li>
             </ul>
           </div>
@@ -703,6 +813,7 @@ function App() {
       <Gallery />
       <Academy />
       <Sponsors />
+      <Contact />
       <Footer />
       {editModeActive && (
         <TweaksPanel tw={tw} open={tweaksOpen} setOpen={setTweaksOpen} />

@@ -4,27 +4,51 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>Eclipse Competition — Premier iRacing Endurance Team</title>
-<meta name="description" content="Eclipse Competition — premier iRacing endurance team. Petit Le Mans winners, Indy 500 winners, FIS & FSS champions. GTP · LMP2 · GT3 · Formula." />
+<meta name="description" content="Eclipse Competition — premier iRacing endurance team. Petit Le Mans winners, Indy 500 winners, FIS &amp; FSS champions. GTP · LMP2 · GT3 · Formula." />
+<meta name="theme-color" content="#0a0a0c" />
+<link rel="canonical" href="https://eclipsecomp.netlify.app/" />
 
 <!-- Open Graph (link previews on iMessage, Slack, Discord, Facebook, LinkedIn) -->
 <meta property="og:type" content="website" />
 <meta property="og:site_name" content="Eclipse Competition" />
 <meta property="og:title" content="Eclipse Competition — Premier iRacing Endurance Team" />
-<meta property="og:description" content="Petit Le Mans winners. Indy 500 winners. FIS & FSS champions. GTP · LMP2 · GT3 · Formula. Founded November 2023." />
-<meta property="og:image" content="https://eclipsecomp.netlify.app/assets/hero-porsche-963.png" />
+<meta property="og:description" content="Petit Le Mans winners. Indy 500 winners. FIS &amp; FSS champions. GTP · LMP2 · GT3 · Formula. Founded November 2023." />
+<meta property="og:image" content="https://eclipsecomp.netlify.app/assets/og-cover.jpg" />
+<meta property="og:image:width" content="1200" />
+<meta property="og:image:height" content="630" />
 <meta property="og:url" content="https://eclipsecomp.netlify.app/" />
 
 <!-- Twitter / X card -->
 <meta name="twitter:card" content="summary_large_image" />
 <meta name="twitter:title" content="Eclipse Competition — Premier iRacing Endurance Team" />
-<meta name="twitter:description" content="Petit Le Mans winners. Indy 500 winners. FIS & FSS champions. GTP · LMP2 · GT3 · Formula." />
-<meta name="twitter:image" content="https://eclipsecomp.netlify.app/assets/hero-porsche-963.png" />
+<meta name="twitter:description" content="Petit Le Mans winners. Indy 500 winners. FIS &amp; FSS champions. GTP · LMP2 · GT3 · Formula." />
+<meta name="twitter:image" content="https://eclipsecomp.netlify.app/assets/og-cover.jpg" />
 
 <link rel="icon" href="assets/icon-white.png" />
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link rel="preload" as="image" href="assets/hero-porsche-963.webp" />
 <link href="https://fonts.googleapis.com/css2?family=Saira+Condensed:ital,wght@0,400;0,600;0,700;0,800;0,900;1,400;1,600;1,700;1,800;1,900&family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
 <link rel="stylesheet" href="styles.css" />
+
+<!-- Structured data: helps Google and AI search understand who the team is -->
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "SportsTeam",
+  "name": "Eclipse Competition",
+  "sport": "Sim Racing",
+  "url": "https://eclipsecomp.netlify.app/",
+  "logo": "https://eclipsecomp.netlify.app/assets/logo-white.png",
+  "foundingDate": "2023-11",
+  "description": "Premier iRacing endurance team running GTP, LMP2, GT3 and Formula programs across IMSA, Global Endurance and IndyCar sim racing series.",
+  "sameAs": [
+    "https://instagram.com/eclipse_competition",
+    "https://discord.gg/CBtQMmcksE"
+  ]
+}
+</script>
+
 <script>
   // Set tweak defaults from localStorage before React mounts so there's no FOUC
   const TWEAK_DEFAULTS = /*EDITMODE-BEGIN*/{
@@ -43,8 +67,10 @@
 <body>
 <div id="root"></div>
 
-<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
-<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<!-- Production React builds: 143KB total vs 1.19MB for the development builds.
+     SRI hashes verified against the react@18.3.1 / react-dom@18.3.1 npm tarballs. -->
+<script src="https://unpkg.com/react@18.3.1/umd/react.production.min.js" integrity="sha384-DGyLxAyjq0f9SPpVevD6IgztCFlnMF6oW/XQGmfe+IsZ8TqEiDrcHkMLKI6fiB/Z" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.production.min.js" integrity="sha384-gTGxhz21lVGYNMcdJOyq01Edg0jhn/c22nsx0kyqP0TxaV5WVdsSH1fSDUf5YJj1" crossorigin="anonymous"></script>
 <script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
 
 <script src="data.js"></script>
