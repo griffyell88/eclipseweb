@@ -57,10 +57,13 @@
     "density": "normal"
   }/*EDITMODE-END*/;
   (function(){
-    const html = document.documentElement;
-    html.dataset.accent  = localStorage.getItem('ec-accent')  || TWEAK_DEFAULTS.accent;
-    html.dataset.hero    = localStorage.getItem('ec-hero')    || TWEAK_DEFAULTS.hero;
-    html.dataset.density = localStorage.getItem('ec-density') || TWEAK_DEFAULTS.density;
+    // localStorage throws in Safari with cookies blocked and in some managed
+    // browsers. Unguarded, that error here killed the page before it painted.
+    var read = function(k){ try { return localStorage.getItem(k); } catch (e) { return null; } };
+    var html = document.documentElement;
+    html.dataset.accent  = read('ec-accent')  || TWEAK_DEFAULTS.accent;
+    html.dataset.hero    = read('ec-hero')    || TWEAK_DEFAULTS.hero;
+    html.dataset.density = read('ec-density') || TWEAK_DEFAULTS.density;
   })();
 </script>
 </head>

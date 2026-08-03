@@ -2,22 +2,31 @@
 const { useState, useEffect } = React;
 const D = window.EC_DATA;
 
+// Safari with "Block All Cookies", Brave in strict mode and some managed
+// browsers throw SecurityError on any localStorage access. Reading it
+// unguarded took the whole site down to a blank page, so every call goes
+// through here. Losing a saved preference is fine; losing the site is not.
+const store = {
+  get(k) { try { return window.localStorage.getItem(k); } catch (e) { return null; } },
+  set(k, v) { try { window.localStorage.setItem(k, v); } catch (e) { /* no-op */ } },
+};
+
 function useTweaks() {
-  const [accent, setAccent] = useState(() => localStorage.getItem('ec-accent') || 'purple');
-  const [hero, setHero] = useState(() => localStorage.getItem('ec-hero') || 'full');
-  const [density, setDensity] = useState(() => localStorage.getItem('ec-density') || 'normal');
+  const [accent, setAccent] = useState(() => store.get('ec-accent') || 'purple');
+  const [hero, setHero] = useState(() => store.get('ec-hero') || 'full');
+  const [density, setDensity] = useState(() => store.get('ec-density') || 'normal');
 
   useEffect(() => {
     document.documentElement.dataset.accent = accent;
-    localStorage.setItem('ec-accent', accent);
+    store.set('ec-accent', accent);
   }, [accent]);
   useEffect(() => {
     document.documentElement.dataset.hero = hero;
-    localStorage.setItem('ec-hero', hero);
+    store.set('ec-hero', hero);
   }, [hero]);
   useEffect(() => {
     document.documentElement.dataset.density = density;
-    localStorage.setItem('ec-density', density);
+    store.set('ec-density', density);
   }, [density]);
 
   return { accent, setAccent, hero, setHero, density, setDensity };
@@ -72,12 +81,10 @@ function LatestResultRibbon() {
   // The dismiss key is versioned by D.latest.id, so bumping the result in
   // data.js re-shows the ribbon to people who dismissed the previous one.
   const key = 'ec-ribbon-dismissed';
-  const [dismissed, setDismissed] = useState(
-    () => localStorage.getItem(key) === D.latest.id
-  );
+  const [dismissed, setDismissed] = useState(() => store.get(key) === D.latest.id);
   if (dismissed) return null;
   const dismiss = () => {
-    localStorage.setItem(key, D.latest.id);
+    store.set(key, D.latest.id);
     setDismissed(true);
   };
   return (
@@ -154,7 +161,7 @@ function Hero() {
           <span className="pt2">COMPETITION</span>
         </h1>
         <p className="hero-sub">
-          We race, we win, we keep pushing. Endurance, Formula and GT programs built around relentless setup work, sharp driving, and a roster that shows up when it matters.
+          Endurance, Formula and GT programs on iRacing. We do the setup work before a race weekend starts, which is how we win Daytona, Sebring and Petit Le Mans.
         </p>
         <div className="hero-cta">
           <a href="#accolades" className="btn btn-primary">View Results →</a>
@@ -163,7 +170,7 @@ function Hero() {
         <div className="hero-tickers">
           <div className="hero-ticker"><div className="n"><em>10+</em></div><div className="l">Endurance Wins</div></div>
           <div className="hero-ticker"><div className="n"><em>9</em></div><div className="l">Special Event Wins</div></div>
-          <div className="hero-ticker"><div className="n"><em>3</em></div><div className="l">Formula Championships</div></div>
+          <div className="hero-ticker"><div className="n"><em>4</em></div><div className="l">Formula Championships</div></div>
           <div className="hero-ticker"><div className="n"><em>5K+</em></div><div className="l">Avg iRating</div></div>
         </div>
         <div className="marquee">
@@ -198,7 +205,31 @@ function MarqueeStrip() {
   );
 }
 
+function TrophyLightbox({ trophy, onClose }) {
+  useEffect(() => {
+    const onKey = (e) => { if (e.key === 'Escape') onClose(); };
+    window.addEventListener('keydown', onKey);
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => { window.removeEventListener('keydown', onKey); document.body.style.overflow = prev; };
+  }, [onClose]);
+
+  return (
+    <div className="lightbox" role="dialog" aria-modal="true" aria-label={trophy.title}
+         onClick={onClose}>
+      <img src={trophy.img} alt={`${trophy.title} — ${trophy.class}, ${trophy.drivers}`}
+           onClick={(e) => e.stopPropagation()} />
+      <div className="lb-meta">
+        <div className="lb-title">{trophy.title}</div>
+        <div className="lb-sub">{trophy.year} · {trophy.class} · {trophy.drivers}</div>
+      </div>
+      <button className="lb-close" onClick={onClose} aria-label="Close" autoFocus>×</button>
+    </div>
+  );
+}
+
 function Accolades() {
+  const [open, setOpen] = useState(null);
   return (
     <section className="section-dark" id="accolades" data-screen-label="02 Accolades">
       <div className="wrap">
@@ -227,13 +258,16 @@ function Accolades() {
         </div>
         <div className="trophies">
           {D.trophies.map((t, i) => (
-            <div
+            <button
+              type="button"
               className={"trophy" + (t.size ? " trophy--" + t.size : "")}
               key={t.title + t.year}
+              onClick={() => setOpen(t)}
+              aria-label={`View ${t.title}, ${t.class}, ${t.drivers}`}
             >
               <img
                 src={t.img}
-                alt={`${t.title} — ${t.class}, ${t.drivers}`}
+                alt=""
                 loading={i === 0 ? 'eager' : 'lazy'}
                 decoding="async"
                 style={t.pos ? { objectPosition: t.pos } : undefined}
@@ -245,10 +279,11 @@ function Accolades() {
                 <div className="t-title">{t.title}</div>
                 <div className="t-drivers">{t.drivers}</div>
               </div>
-            </div>
+            </button>
           ))}
         </div>
       </div>
+      {open && <TrophyLightbox trophy={open} onClose={() => setOpen(null)} />}
     </section>
   );
 }
@@ -293,7 +328,7 @@ function Roster() {
         </div>
 
         <div className="tier-head">
-          <span className="idx">/ KEY STAFF — PIT WALL</span>
+          <span className="idx">/ KEY STAFF · PIT WALL</span>
           <h3>Behind the car</h3>
           <span className="line" />
         </div>
@@ -313,7 +348,7 @@ function Roster() {
         </div>
 
         <div className="tier-head">
-          <span className="idx">/ FEATURED DRIVERS — RACE SEAT</span>
+          <span className="idx">/ FEATURED DRIVERS · RACE SEAT</span>
           <h3>In the car</h3>
           <span className="line" />
         </div>
@@ -409,10 +444,11 @@ function Events() {
     .filter(({ s }) => s.m > today.m || (s.m === today.m && s.d >= today.d))
     .slice(0, 3)
     .map(x => x.ev);
-  // Fallback: if we're past the last event of the calendar year, show the first 3 of next year
-  if (upcoming.length === 0) {
-    upcoming = D.events.slice(0, 3);
-  }
+  // Past the last race of the year, loop to the top of the calendar. Label it as
+  // next season, otherwise January dates read as upcoming all through December.
+  const nextSeason = upcoming.length === 0;
+  if (nextSeason) upcoming = D.events.slice(0, 3);
+  const seasonYear = now.getFullYear() + (nextSeason ? 1 : 0);
 
   return (
     <section className="section-dark" id="events" data-screen-label="04 Events">
@@ -426,14 +462,14 @@ function Events() {
         </div>
 
         <div className="tier-head">
-          <span className="idx">/ UP NEXT</span>
-          <h3>The next three</h3>
+          <span className="idx">{nextSeason ? `/ ${seasonYear} SEASON` : '/ UP NEXT'}</span>
+          <h3>{nextSeason ? `Opening the ${seasonYear} season` : 'The next three'}</h3>
           <span className="line" />
         </div>
         <div className="up-next">
           {upcoming.map((e, i) => (
             <div className="up-card" key={i}>
-              <div className="up-mo">{e.mo}</div>
+              <div className="up-mo">{e.mo} {seasonYear}</div>
               <div className="up-date">{e.d}</div>
               <div className="up-title">{e.t}</div>
               <div className="up-v">{e.v}</div>
@@ -477,8 +513,8 @@ function Programs() {
         <div className="ops">
           <div className="ops-card">
             <div className="num">/ 05.1</div>
-            <h4>Endurance Program</h4>
-            <p>Full-time roster running GTP, LMP2 and GT3 across IMSA and Global Endurance. Testing before every race — not on race day.</p>
+            <h3>Endurance Program</h3>
+            <p>A full-time roster in GTP, LMP2 and GT3 across IMSA and Global Endurance. Every car tests in the weeks before a race, not the morning of it.</p>
             <ul>
               <li><span>24H RACES</span><span>4 DRIVERS</span></li>
               <li><span>6H RACES</span><span>2 PER CAR</span></li>
@@ -487,8 +523,8 @@ function Programs() {
           </div>
           <div className="ops-card">
             <div className="num">/ 05.2</div>
-            <h4>Formula Program</h4>
-            <p>Open-wheel focused on the Dallara IR-18 IndyCar platform. Three Formula League championships and Indy 500 winners.</p>
+            <h3>Formula Program</h3>
+            <p>Open-wheel racing on the Dallara IR-18. Three Formula league titles, plus Indy 500 and Brickyard 400 wins.</p>
             <ul>
               <li><span>FIS</span><span>TEAM CHAMPS</span></li>
               <li><span>INDY 500</span><span>WINNER ×1</span></li>
@@ -497,8 +533,8 @@ function Programs() {
           </div>
           <div className="ops-card">
             <div className="num">/ 05.3</div>
-            <h4>Team Culture</h4>
-            <p>Voting on race check-in. Show up for testing. Use your real iRacing name. Simple rules, high standards, and a roster that backs each other up.</p>
+            <h3>Team Culture</h3>
+            <p>Vote on race check-in, show up for testing, and race under your real iRacing name. Short list of rules, and drivers who cover for each other when a stint goes wrong.</p>
             <ul>
               <li><span>FOUNDED</span><span>NOV 2023</span></li>
               <li><span>PLATFORM</span><span>iRACING</span></li>
@@ -519,7 +555,7 @@ function Programs() {
             <div className="st-eyebrow">/ IN DEVELOPMENT</div>
             <div className="st-title">Eclipse<br/>Setup Shop</div>
             <p className="st-desc">
-              A setup shop where we build, share and sell setups honed by our own drivers. Race-proven across GTP, LMP2, GT3 and Formula — with an AI-assisted setup tool in development by our engineering group.
+              We're opening a shop for the setups our own drivers race, covering GTP, LMP2, GT3 and Formula. Our engineering group is building an AI-assisted setup tool to go with it.
             </p>
             <span className="st-badge">Launching 2026</span>
           </div>
@@ -624,9 +660,9 @@ function Academy() {
   return (
     <section className="academy" id="join" data-screen-label="06 Academy">
       <div className="academy-inner">
-        <div className="eyebrow">/ 06 — ECLIPSE ACADEMY</div>
+        <div className="eyebrow">/ 06 · ECLIPSE ACADEMY</div>
         <h2>Think you've got the <em>pace</em>?</h2>
-        <p>Eclipse Academy is our development pipeline. We're running two Academy teams in 2026 alongside the main roster — if you show up for testing, vote on check-in, and bring the right attitude, there's a seat for you.</p>
+        <p>We run two Academy teams in 2026 alongside the main roster. Show up for testing, vote on check-in, and race clean, and you'll get a seat.</p>
         <div className="cta-row">
           <a href={D.brand.discord} target="_blank" rel="noopener noreferrer" className="btn btn-primary">Join our Discord →</a>
           <a href="#team" className="btn">Meet the team</a>
@@ -645,12 +681,7 @@ function Sponsors() {
             <div className="num">/ 07</div>
             <h2>Partners &amp; Sponsors</h2>
           </div>
-          <div className="sponsors-head-right">
-            <div className="tag">Running with us in 2026</div>
-            <a href="assets/Eclipse_Media_Kit_2026.pdf" download className="media-kit-btn">
-              Media Kit ↓
-            </a>
-          </div>
+          <div className="tag">Running with us in 2026</div>
         </div>
         <div className="sponsors-grid">
           {D.sponsors.map((s, i) => (
@@ -690,27 +721,26 @@ function Contact() {
         <div className="contact-grid">
           <div className="contact-pitch">
             <p className="ct-lead">
-              Eclipse runs a full endurance, Formula and GT program across iRacing's
-              biggest events — Daytona, Sebring, Spa, the Indy 500 and Petit Le Mans —
-              in front of an audience that actually watches sports car racing.
+              Eclipse races the events sim racing fans turn up for: Daytona, Sebring,
+              Spa, the Indy 500 and Petit Le Mans.
             </p>
             <p className="ct-body">
-              We work with brands on livery placement, broadcast presence, content
-              partnerships and charity activations. If you want the numbers, the media
-              kit has the full breakdown. If you'd rather just talk, the Discord is the
-              fastest way to reach the people who make decisions.
+              We put brands on the car and into the content our drivers make, across a
+              fourteen-race calendar. To reach someone who can say yes, come to the
+              Discord.
             </p>
+            {/* Counts read from data.js so they can't drift out of date */}
             <div className="ct-points">
-              <div className="ct-point"><em>14</em><span>Events on the 2026 calendar</span></div>
-              <div className="ct-point"><em>10</em><span>Partners &amp; charities running with us</span></div>
-              <div className="ct-point"><em>5K+</em><span>Average team iRating</span></div>
+              <div className="ct-point"><em>{D.events.length}</em><span>Events on the 2026 calendar</span></div>
+              <div className="ct-point"><em>{D.trophies.length}</em><span>Wins &amp; titles in the cabinet</span></div>
+              <div className="ct-point"><em>{D.sponsors.length}</em><span>Partners &amp; charities running with us</span></div>
             </div>
           </div>
 
           <div className="contact-actions">
             <div className="ca-head">/ GET IN TOUCH</div>
             {D.brand.email ? (
-              <a className="ca-btn ca-btn--primary" href={`mailto:${D.brand.email}?subject=Eclipse%20Competition%20—%20Partnership%20Enquiry`}>
+              <a className="ca-btn ca-btn--primary" href={`mailto:${D.brand.email}?subject=Eclipse%20Competition%20Partnership%20Enquiry`}>
                 <span className="ca-label">Email the team</span>
                 <span className="ca-val">{D.brand.email}</span>
               </a>
@@ -723,10 +753,6 @@ function Contact() {
             <a className="ca-btn" href={D.brand.igUrl} target="_blank" rel="noopener noreferrer">
               <span className="ca-label">Instagram</span>
               <span className="ca-val">{D.brand.ig}</span>
-            </a>
-            <a className="ca-btn" href="assets/Eclipse_Media_Kit_2026.pdf" download>
-              <span className="ca-label">Media Kit 2026</span>
-              <span className="ca-val">Download the PDF ↓</span>
             </a>
           </div>
         </div>
@@ -742,10 +768,10 @@ function Footer() {
         <div className="footer-main">
           <div className="footer-brand">
             <img src="assets/logo-white.png" alt="Eclipse Competition" loading="lazy" />
-            <p>Premier iRacing endurance team. Founded November 2023. Founder-led, one roster, a garage full of purple.</p>
+            <p>iRacing endurance team, founded November 2023. Still run by the two drivers who started it.</p>
           </div>
           <div>
-            <h6>Team</h6>
+            <h3>Team</h3>
             <ul>
               <li><a href="#team">Roster</a></li>
               <li><a href="#accolades">Results</a></li>
@@ -755,7 +781,7 @@ function Footer() {
             </ul>
           </div>
           <div>
-            <h6>Racing</h6>
+            <h3>Racing</h3>
             <ul>
               <li><a href="#events">2026 Calendar</a></li>
               <li><a href="#programs">Endurance Program</a></li>
@@ -764,13 +790,12 @@ function Footer() {
             </ul>
           </div>
           <div>
-            <h6>Connect</h6>
+            <h3>Connect</h3>
             <ul>
               <li><a href={D.brand.discord} target="_blank" rel="noopener noreferrer">Discord · Join the Server</a></li>
               <li><a href={D.brand.igUrl} target="_blank" rel="noopener noreferrer">Instagram · {D.brand.ig}</a></li>
               <li><a href="#join">Join Academy</a></li>
               <li><a href="#contact">Partner with Us</a></li>
-              <li><a href="assets/Eclipse_Media_Kit_2026.pdf" download>Download Media Kit ↓</a></li>
             </ul>
           </div>
         </div>
@@ -822,4 +847,27 @@ function App() {
   );
 }
 
-ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+// If data.js fails to load, or any component throws, show a small branded card
+// with a live Discord link instead of the blank white page we used to serve.
+function Fallback() {
+  return (
+    <div className="site-fallback">
+      <img src="assets/logo-white.png" alt="Eclipse Competition" />
+      <p>We're having trouble loading the site right now. Our Discord is always open.</p>
+      <a className="btn btn-primary" href="https://discord.gg/CBtQMmcksE"
+         target="_blank" rel="noopener noreferrer">Join our Discord →</a>
+    </div>
+  );
+}
+
+class ErrorBoundary extends React.Component {
+  constructor(props) { super(props); this.state = { failed: false }; }
+  static getDerivedStateFromError() { return { failed: true }; }
+  componentDidCatch(err) { console.error('Eclipse site error:', err); }
+  render() { return this.state.failed ? <Fallback /> : this.props.children; }
+}
+
+const root = ReactDOM.createRoot(document.getElementById('root'));
+root.render(
+  D ? <ErrorBoundary><App /></ErrorBoundary> : <Fallback />
+);

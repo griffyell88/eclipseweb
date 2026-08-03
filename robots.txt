@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://eclipsecomp.netlify.app/sitemap.xml
