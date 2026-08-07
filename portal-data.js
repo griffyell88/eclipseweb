@@ -30,6 +30,10 @@ window.EC_PORTAL = {
   // DATES: `date` is the display label; `end` (YYYY-MM-DD) drives automation —
   // the day after `end`, the event drops out of signups/rosters/dashboard on
   // its own. Leave `end` off to keep an event up forever.
+  // LINEUPS: an event can carry a baked-in lineup — class → cars → drivers:
+  //   lineup: { "GT3": [{ num: "31", drivers: ["Titus Sherlock", "Michael Costello"] }] }
+  // Admins can also build lineups in the UI (saved per-browser); use the
+  // Export button on the Rosters tab and paste here to make them permanent.
   // Entries added in the UI persist per-browser (localStorage) until the backend
   // lands — entries listed HERE are the shared source of truth.
   events: [
@@ -70,18 +74,6 @@ window.EC_PORTAL = {
       status: "open",
       entries: [],
     },
-    {
-      id: "sfl-mountain-showdown-2026",
-      title: "SFL Mountain Showdown",
-      track: "Mount Panorama Circuit",
-      date: "NOV 13–15",
-      end: "2026-11-15",
-      series: "Special Event",
-      classes: ["Super Formula Light"],
-      mode: "self",
-      status: "open",
-      entries: [],
-    },
   ],
 
   // ── SERIES SCHEDULES ──────────────────────────────────────────────────────
@@ -104,22 +96,12 @@ window.EC_PORTAL = {
       ],
     },
     {
-      series: "Global Endurance Tour",
-      cadence: "Every other Saturday 7:00 & 18:00 GMT · Sunday 14:00 GMT",
-      rounds: [
-        // TODO Griffin: drop in the current GET rounds — the screenshot I got
-        // was from the spring season (Imola/Spa/Nürburgring/Road America).
-        { r: 0, date: "TBD", track: "Current season rounds — update me" },
-      ],
-    },
-    {
       series: "Special Events",
       cadence: "2026 · Team Events",
       rounds: [
         { r: 1, date: "SEP 10–15", iso: "2026-09-15", track: "Suzuka 1000km — GT3" },
         { r: 2, date: "SEP 25–27", iso: "2026-09-27", track: "Petit Le Mans — GTP · LMP2 · GT3" },
         { r: 3, date: "OCT 16–18", iso: "2026-10-18", track: "8 Hours of Indianapolis — GT3" },
-        { r: 4, date: "NOV 13–15", iso: "2026-11-15", track: "SFL Mountain Showdown — Super Formula Light" },
       ],
     },
   ],

@@ -3,10 +3,12 @@
 //
 // AUTH DISCLAIMER: the login below is a curtain for the build phase — it hashes
 // credentials client-side against portal-data.js, which ships to the browser.
-// The swap to real auth (Supabase + Discord login) is isolated in `auth` below:
-// replace its functions and the rest of the portal doesn't change. Admin/driver
-// roles come from the user record now, and from auth.adminDiscord once Discord
-// login lands.
+// The swap to real auth (Supabase + Discord login) is isolated in `auth` below.
+//
+// ADMIN EDITING: schedule/lineup/driver-DB edits save to THIS BROWSER ONLY
+// (localStorage overrides on top of portal-data.js). Each editable section has
+// an Export button — copy the JSON and paste it into portal-data.js to make
+// changes permanent for everyone. This all moves server-side with Supabase.
 const { useState, useEffect, useMemo } = React;
 const P = window.EC_PORTAL;
 
@@ -47,8 +49,7 @@ const auth = {
   logout() { store.del(SESSION_KEY); },
 };
 
-// ── Signup persistence (browser-local until the backend exists) ─────────────
-// Merges UI-added entries on top of the entries hardcoded in portal-data.js.
+// ── Local persistence (browser-local until the backend exists) ───────────────
 const SIGNUP_KEY = 'ec-portal-signups';
 function loadLocalSignups() {
   try { return JSON.parse(store.get(SIGNUP_KEY) || '{}'); } catch (e) { return {}; }
@@ -56,22 +57,46 @@ function loadLocalSignups() {
 function saveLocalSignups(map) { store.set(SIGNUP_KEY, JSON.stringify(map)); }
 function allEntries(ev, localMap) { return [...ev.entries, ...(localMap[ev.id] || [])]; }
 
+// Admin edits live here as overrides on top of portal-data.js:
+// { schedules: [...]?, lineups: { [eventId]: { [class]: [{num, drivers[]}] } }?, driverDB: [...]? }
+const OVERRIDE_KEY = 'ec-portal-overrides';
+function loadOverrides() {
+  try { return JSON.parse(store.get(OVERRIDE_KEY) || '{}'); } catch (e) { return {}; }
+}
+
 const STATE_LABEL = { confirmed: 'CONFIRMED', available: 'AVAILABLE', tentative: 'TENTATIVE', reserve: 'RESERVE' };
 
 // ── Date automation ──────────────────────────────────────────────────────────
 // A round/event is "past" starting the day AFTER its end date, so race day
 // itself still shows as upcoming (same rule as the public site's calendar).
-// Dates parse as local time (append T00:00 to avoid the UTC-shift footgun).
 function isPast(iso) {
   if (!iso) return false;
   const end = new Date(iso + 'T23:59:59');
   return new Date() > end;
 }
-// Events sorted by end date (undated events sink to the bottom, always live).
 function liveEvents() {
   return P.events
     .filter(ev => !isPast(ev.end))
     .sort((a, b) => (a.end || '9999').localeCompare(b.end || '9999'));
+}
+
+function copyText(text) {
+  if (navigator.clipboard && navigator.clipboard.writeText) return navigator.clipboard.writeText(text);
+  const ta = document.createElement('textarea');
+  ta.value = text; document.body.appendChild(ta); ta.select();
+  document.execCommand('copy'); document.body.removeChild(ta);
+  return Promise.resolve();
+}
+
+function ExportBtn({ data, label }) {
+  const [done, setDone] = useState(false);
+  return (
+    <button className="pt-mini-btn" onClick={() => {
+      copyText(JSON.stringify(data, null, 2)).then(() => {
+        setDone(true); setTimeout(() => setDone(false), 1600);
+      });
+    }}>{done ? 'Copied ✓' : (label || 'Export JSON')}</button>
+  );
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -124,10 +149,11 @@ function Login({ onAuthed }) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-function Dashboard({ user, localMap, goto, isAdmin }) {
+function Dashboard({ user, localMap, goto, isAdmin, ov }) {
   const open = liveEvents().filter(e => e.status === 'open');
   const next = open[0];
   const nextEntries = next ? allEntries(next, localMap) : [];
+  const db = ov.driverDB || P.driverDB;
   return (
     <div className="pt-panel">
       <div className="pt-welcome">
@@ -153,12 +179,12 @@ function Dashboard({ user, localMap, goto, isAdmin }) {
         <button className="pt-dash-card" onClick={() => goto('rosters')}>
           <div className="pt-dc-label">ROSTERS</div>
           <div className="pt-dc-big">{open.length + 1}</div>
-          <div className="pt-dc-sub">event rosters + FIS</div>
+          <div className="pt-dc-sub">event lineups + FIS</div>
         </button>
         {isAdmin ? (
           <button className="pt-dash-card" onClick={() => goto('driverinfo')}>
             <div className="pt-dc-label">DRIVER DATABASE</div>
-            <div className="pt-dc-big">{P.driverDB.length}</div>
+            <div className="pt-dc-big">{db.length}</div>
             <div className="pt-dc-sub">drivers on file · admin only</div>
           </button>
         ) : (
@@ -170,9 +196,9 @@ function Dashboard({ user, localMap, goto, isAdmin }) {
         )}
       </div>
       <div className="pt-note">
-        <strong>Build note:</strong> signups you make here save to this browser only for
-        now. The team-wide backend (Discord login) is the next phase — until then,
-        entries in <span className="mono">portal-data.js</span> are the shared source of truth.
+        <strong>Build note:</strong> signups{isAdmin ? ' and admin edits' : ''} save to this
+        browser only for now — the team-wide backend (Discord login) is the next phase.
+        {isAdmin && <> Use the Export buttons to copy edits into <span className="mono">portal-data.js</span> so everyone gets them.</>}
       </div>
     </div>
   );
@@ -194,7 +220,6 @@ function EventCard({ ev, user, localMap, setLocalMap, isAdmin }) {
   const leave = () => {
     const next = { ...localMap, [ev.id]: localEntries.filter(en => en.driver !== user.name) };
     setLocalMap(next); saveLocalSignups(next);
-    // Entries hardcoded in portal-data.js can't be removed from the UI — by design.
   };
 
   return (
@@ -271,6 +296,7 @@ function EventCard({ ev, user, localMap, setLocalMap, isAdmin }) {
 }
 
 function Events({ user, isAdmin, localMap, setLocalMap }) {
+  const evs = liveEvents();
   return (
     <div className="pt-panel">
       <div className="pt-panel-head">
@@ -278,11 +304,11 @@ function Events({ user, isAdmin, localMap, setLocalMap }) {
         <div className="pt-tag mono">REPLACES #race-check-in</div>
       </div>
       <div className="pt-events">
-        {liveEvents().map(ev => (
+        {evs.map(ev => (
           <EventCard key={ev.id} ev={ev} user={user} localMap={localMap}
                      setLocalMap={setLocalMap} isAdmin={isAdmin} />
         ))}
-        {liveEvents().length === 0 && (
+        {evs.length === 0 && (
           <div className="pt-empty">No upcoming events — new ones appear here when they're added to portal-data.js.</div>
         )}
       </div>
@@ -291,33 +317,87 @@ function Events({ user, isAdmin, localMap, setLocalMap }) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-function Schedule() {
+function Schedule({ isAdmin, ov, patchOv }) {
   const [showPast, setShowPast] = useState(false);
+  const [editing, setEditing] = useState(false);
+  const schedules = ov.schedules || P.schedules;
+
+  const mutate = (fn) => {
+    const next = JSON.parse(JSON.stringify(schedules));
+    fn(next);
+    patchOv({ schedules: next });
+  };
+  const setRound = (si, ri, field, val) => mutate(s => { s[si].rounds[ri][field] = field === 'r' ? (parseInt(val, 10) || 0) : val; });
+  const addRound = (si) => mutate(s => s[si].rounds.push({ r: s[si].rounds.length + 1, date: '', iso: '', track: '' }));
+  const delRound = (si, ri) => mutate(s => s[si].rounds.splice(ri, 1));
+  const setSeries = (si, field, val) => mutate(s => { s[si][field] = val; });
+  const hasOverride = !!ov.schedules;
+
   return (
     <div className="pt-panel">
       <div className="pt-panel-head">
         <h2 className="pt-h2">Schedules</h2>
         <div className="pt-sched-controls">
+          {isAdmin && (
+            <>
+              {hasOverride && <ExportBtn data={schedules} label="Export JSON" />}
+              {hasOverride && !editing && (
+                <button className="pt-mini-btn pt-mini-btn--warn" onClick={() => {
+                  if (window.confirm('Discard local schedule edits and go back to what portal-data.js says?')) patchOv({ schedules: undefined });
+                }}>Reset to file</button>
+              )}
+              <button className="pt-subtab" data-active={editing} onClick={() => setEditing(!editing)}>
+                {editing ? 'Done editing' : 'Edit schedules'}
+              </button>
+            </>
+          )}
           <button className="pt-subtab" data-active={showPast} onClick={() => setShowPast(!showPast)}>
             {showPast ? 'Hide past rounds' : 'Show past rounds'}
           </button>
         </div>
       </div>
-      {P.schedules.map((s, i) => {
+
+      {editing && (
+        <div className="pt-note">
+          Edits save in this browser only. When the schedule's right, hit <strong>Export
+          JSON</strong> and paste it over the <span className="mono">schedules</span> block in
+          <span className="mono"> portal-data.js</span> (or send it to Claude) to make it live for everyone.
+          Dates: <span className="mono">iso</span> = the round's last day, <span className="mono">YYYY-MM-DD</span> — it drives the auto-hiding.
+        </div>
+      )}
+
+      {schedules.map((s, si) => {
         const upcoming = s.rounds.filter(r => !isPast(r.iso));
         const nextIso = upcoming.find(r => r.iso)?.iso;
-        const rounds = showPast ? s.rounds : upcoming;
+        const rounds = (showPast || editing) ? s.rounds : upcoming;
         return (
-          <div className="pt-sched" key={i}>
+          <div className="pt-sched" key={si}>
             <div className="pt-sched-head">
-              <span className="pt-sched-series">{s.series}</span>
-              <span className="pt-sched-cad mono">{s.cadence}</span>
+              {editing ? (
+                <input className="pt-input pt-input--title" value={s.series} onChange={e => setSeries(si, 'series', e.target.value)} />
+              ) : (
+                <span className="pt-sched-series">{s.series}</span>
+              )}
+              {editing ? (
+                <input className="pt-input pt-input--cad mono" value={s.cadence} onChange={e => setSeries(si, 'cadence', e.target.value)} />
+              ) : (
+                <span className="pt-sched-cad mono">{s.cadence}</span>
+              )}
             </div>
             <div className="pt-sched-rounds">
               {rounds.map((r, j) => {
+                const ri = s.rounds.indexOf(r);
                 const past = isPast(r.iso);
                 const next = r.iso && r.iso === nextIso;
-                return (
+                return editing ? (
+                  <div className="pt-round pt-round--edit" key={ri}>
+                    <input className="pt-input pt-input--xs mono" value={r.r || ''} onChange={e => setRound(si, ri, 'r', e.target.value)} placeholder="R#" />
+                    <input className="pt-input pt-input--sm mono" value={r.date} onChange={e => setRound(si, ri, 'date', e.target.value)} placeholder="AUG 12" />
+                    <input className="pt-input pt-input--sm mono" value={r.iso || ''} onChange={e => setRound(si, ri, 'iso', e.target.value)} placeholder="2026-08-12" />
+                    <input className="pt-input" value={r.track} onChange={e => setRound(si, ri, 'track', e.target.value)} placeholder="Track — laps" />
+                    <button className="pt-en-x" title="Delete round" onClick={() => delRound(si, ri)}>×</button>
+                  </div>
+                ) : (
                   <div className="pt-round" key={j} data-past={past}>
                     <span className="pt-round-n mono">{r.r ? `R${r.r}` : '—'}</span>
                     <span className="pt-round-date mono">{r.date}</span>
@@ -328,8 +408,11 @@ function Schedule() {
                   </div>
                 );
               })}
-              {rounds.length === 0 && (
+              {rounds.length === 0 && !editing && (
                 <div className="pt-empty">Season complete — flip “Show past rounds” to see how it went.</div>
+              )}
+              {editing && (
+                <button className="pt-mini-btn pt-add-round" onClick={() => addRound(si)}>+ Add round</button>
               )}
             </div>
           </div>
@@ -340,42 +423,130 @@ function Schedule() {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Rosters: auto-built from event signups (one block per open event, grouped by
-// class), plus the static FIS roster from the spotter guide.
-function Rosters({ localMap }) {
+// Rosters: per-event lineups (class → car number → drivers), the signup pool
+// underneath each, and the fixed FIS roster.
+function Rosters({ localMap, isAdmin, ov, patchOv }) {
+  const [editing, setEditing] = useState(false);
   const openEvents = liveEvents().filter(e => e.status === 'open');
+  const lineups = ov.lineups || {};
+  const getLineup = (ev) => lineups[ev.id] || ev.lineup || {};
+  const setLineup = (ev, lu) => patchOv({ lineups: { ...lineups, [ev.id]: lu } });
+  const db = ov.driverDB || P.driverDB;
+
+  const carOps = (ev, cls) => {
+    const lu = getLineup(ev);
+    const cars = lu[cls] || [];
+    const write = (nextCars) => setLineup(ev, { ...lu, [cls]: nextCars });
+    return {
+      cars,
+      addCar: () => write([...cars, { num: '', drivers: [] }]),
+      delCar: (ci) => write(cars.filter((_, i) => i !== ci)),
+      setNum: (ci, num) => write(cars.map((c, i) => i === ci ? { ...c, num } : c)),
+      addDriver: (ci, name) => {
+        if (!name.trim()) return;
+        write(cars.map((c, i) => i === ci ? { ...c, drivers: [...c.drivers, name.trim()] } : c));
+      },
+      delDriver: (ci, di) => write(cars.map((c, i) => i === ci ? { ...c, drivers: c.drivers.filter((_, j) => j !== di) } : c)),
+    };
+  };
+
   return (
     <div className="pt-panel">
       <div className="pt-panel-head">
         <h2 className="pt-h2">Rosters</h2>
-        <div className="pt-tag mono">AUTO-BUILT FROM SIGNUPS</div>
+        <div className="pt-sched-controls">
+          {isAdmin && ov.lineups && <ExportBtn data={ov.lineups} label="Export lineups" />}
+          {isAdmin && (
+            <button className="pt-subtab" data-active={editing} onClick={() => setEditing(!editing)}>
+              {editing ? 'Done editing' : 'Edit lineups'}
+            </button>
+          )}
+        </div>
       </div>
+
+      {editing && (
+        <div className="pt-note">
+          Build each car: number + drivers (type a name — signups and the driver DB
+          autocomplete). Saves in this browser; <strong>Export lineups</strong> →
+          paste into each event's <span className="mono">lineup</span> in <span className="mono">portal-data.js</span> to publish.
+        </div>
+      )}
 
       {openEvents.map(ev => {
         const entries = allEntries(ev, localMap);
-        const byClass = ev.classes.map(cls => ({ cls, list: entries.filter(en => en.cls === cls) }));
+        const listId = `dl-${ev.id}`;
+        const suggestions = [...new Set([...entries.map(en => en.driver), ...db.map(d => d.name).filter(Boolean)])];
         return (
           <div className="pt-roster-block" key={ev.id}>
             <div className="pt-rb-head">
               <span className="pt-rb-title">{ev.title}</span>
-              <span className="pt-rb-date mono">{ev.date} · {entries.length} {entries.length === 1 ? 'DRIVER' : 'DRIVERS'}</span>
+              <span className="pt-rb-date mono">{ev.date} · {entries.length} SIGNED UP</span>
             </div>
-            {entries.length === 0 ? (
-              <div className="pt-empty">No signups yet — first in gets the good stint.</div>
-            ) : byClass.map(({ cls, list }) => list.length > 0 && (
-              <div className="pt-rb-class" key={cls}>
-                <div className="pt-rb-cls mono">{cls}</div>
+
+            <datalist id={listId}>
+              {suggestions.map((n, i) => <option key={i} value={n} />)}
+            </datalist>
+
+            {/* Lineup: class → car number → drivers */}
+            {ev.classes.map(cls => {
+              const ops = carOps(ev, cls);
+              if (!editing && ops.cars.length === 0) return null;
+              return (
+                <div className="pt-rb-class" key={cls}>
+                  <div className="pt-rb-cls mono">{cls}</div>
+                  <div className="pt-cars">
+                    {ops.cars.map((car, ci) => (
+                      <div className="pt-car" key={ci}>
+                        <div className="pt-car-num">
+                          {editing
+                            ? <input className="pt-input pt-input--xs mono" value={car.num} placeholder="#" onChange={e => ops.setNum(ci, e.target.value)} />
+                            : <span className="mono">#{car.num || '—'}</span>}
+                          {editing && <button className="pt-en-x" title="Remove car" onClick={() => ops.delCar(ci)}>×</button>}
+                        </div>
+                        <div className="pt-car-drivers">
+                          {car.drivers.map((d, di) => (
+                            <span className="pt-chip" key={di}>
+                              {d}
+                              {editing && <button onClick={() => ops.delDriver(ci, di)}>×</button>}
+                            </span>
+                          ))}
+                          {car.drivers.length === 0 && !editing && <span className="pt-empty-inline mono">NO DRIVERS ASSIGNED</span>}
+                          {editing && (
+                            <input className="pt-input pt-input--driver" list={listId} placeholder="+ add driver, press Enter"
+                              onKeyDown={e => {
+                                if (e.key === 'Enter') { e.preventDefault(); ops.addDriver(ci, e.target.value); e.target.value = ''; }
+                              }} />
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                    {editing && (
+                      <button className="pt-mini-btn" onClick={ops.addCar}>+ Add {cls} car</button>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+            {!editing && ev.classes.every(cls => (getLineup(ev)[cls] || []).length === 0) && (
+              <div className="pt-empty">No lineup published yet{isAdmin ? ' — hit Edit lineups to build it' : ''}.</div>
+            )}
+
+            {/* Signup pool */}
+            {entries.length > 0 && (
+              <div className="pt-rb-class">
+                <div className="pt-rb-cls mono">SIGNUP POOL</div>
                 <div className="pt-roster">
-                  {list.map((en, i) => (
+                  {entries.map((en, i) => (
                     <div className="pt-roster-row" key={i}>
                       <span className="pt-rr-n mono">{String(i + 1).padStart(2, '0')}</span>
                       <span className="pt-rr-name">{en.driver}</span>
+                      <span className="pt-rr-car mono">{en.cls}</span>
                       <span className="pt-en-state" data-state={en.state}>{STATE_LABEL[en.state] || en.state}</span>
                     </div>
                   ))}
                 </div>
               </div>
-            ))}
+            )}
           </div>
         );
       })}
@@ -431,18 +602,71 @@ function Paints() {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Admin-only: the driver database from the team spreadsheet.
-const DB_STATUSES = ['All', 'Active', 'Trial', 'Inactive', 'One Off'];
-function DriverInfo() {
-  const [q, setQ] = useState('');
-  const [status, setStatus] = useState('Active');
-  const db = P.driverDB;
+// Admin-only: the driver database. Sortable + filterable per column, editable.
+const DB_COLS = [
+  { key: 'status',      label: 'STATUS' },
+  { key: 'name',        label: 'NAME' },
+  { key: 'discord',     label: 'DISCORD' },
+  { key: 'iracingName', label: 'iR NAME' },
+  { key: 'iracingId',   label: 'iR ID', num: true },
+  { key: 'scIr',        label: 'SC iR', num: true },
+  { key: 'fmIr',        label: 'FM iR', num: true },
+  { key: 'scLic',       label: 'SC LIC' },
+  { key: 'fmLic',       label: 'FM LIC' },
+  { key: 'prefCars',    label: 'CARS' },
+  { key: 'region',      label: 'REGION' },
+  { key: 'joined',      label: 'JOINED' },
+  { key: 'notes',       label: 'NOTES' },
+];
+const EMPTY_DRIVER = Object.fromEntries(DB_COLS.map(c => [c.key, '']));
 
-  const list = useMemo(() => db.filter(d => {
-    if (status !== 'All' && d.status !== status) return false;
-    const hay = `${d.name} ${d.discord} ${d.iracingName} ${d.prefCars} ${d.region} ${d.source} ${d.notes}`.toLowerCase();
-    return hay.includes(q.toLowerCase());
-  }), [q, status]);
+function DriverInfo({ ov, patchOv }) {
+  const [sort, setSort] = useState({ key: null, dir: 1 });
+  const [filters, setFilters] = useState({});
+  const [editing, setEditing] = useState(false);
+  const db = ov.driverDB || P.driverDB;
+
+  const write = (next) => patchOv({ driverDB: next });
+  const setCell = (idx, key, val) => write(db.map((d, i) => i === idx ? { ...d, [key]: val } : d));
+  const delRow = (idx) => {
+    const d = db[idx];
+    if (window.confirm(`Remove ${d.name || d.discord || 'this driver'} from the database?`)) {
+      write(db.filter((_, i) => i !== idx));
+    }
+  };
+  const addRow = () => { setFilters({}); setSort({ key: null, dir: 1 }); write([{ ...EMPTY_DRIVER, status: 'Trial' }, ...db]); };
+
+  const clickSort = (key) => setSort(s => s.key === key ? (s.dir === 1 ? { key, dir: -1 } : { key: null, dir: 1 }) : { key, dir: 1 });
+
+  const view = useMemo(() => {
+    let rows = db.map((d, i) => ({ d, i }));
+    for (const [key, f] of Object.entries(filters)) {
+      if (!f) continue;
+      // Status is prefix-matched so "active" doesn't also catch "Inactive".
+      rows = rows.filter(({ d }) => {
+        const v = String(d[key] || '').toLowerCase(), q = f.toLowerCase();
+        return key === 'status' ? v.startsWith(q) : v.includes(q);
+      });
+    }
+    if (sort.key) {
+      const col = DB_COLS.find(c => c.key === sort.key);
+      rows = [...rows].sort((a, b) => {
+        const av = a.d[sort.key] || '', bv = b.d[sort.key] || '';
+        if (col.num) {
+          const an = parseFloat(av), bn = parseFloat(bv);
+          if (isNaN(an) && isNaN(bn)) return 0;
+          if (isNaN(an)) return 1;   // blanks sink regardless of direction
+          if (isNaN(bn)) return -1;
+          return (an - bn) * sort.dir;
+        }
+        if (!av && !bv) return 0;
+        if (!av) return 1;
+        if (!bv) return -1;
+        return String(av).localeCompare(String(bv)) * sort.dir;
+      });
+    }
+    return rows;
+  }, [db, filters, sort]);
 
   const active = db.filter(d => d.status === 'Active');
   const avg = (arr) => {
@@ -454,7 +678,18 @@ function DriverInfo() {
     <div className="pt-panel">
       <div className="pt-panel-head">
         <h2 className="pt-h2">Driver Info</h2>
-        <div className="pt-tag mono">ADMIN ONLY · FROM THE TEAM SPREADSHEET</div>
+        <div className="pt-sched-controls">
+          {ov.driverDB && <ExportBtn data={db} label="Export JSON" />}
+          {ov.driverDB && !editing && (
+            <button className="pt-mini-btn pt-mini-btn--warn" onClick={() => {
+              if (window.confirm('Discard local driver DB edits and go back to what portal-data.js says?')) patchOv({ driverDB: undefined });
+            }}>Reset to file</button>
+          )}
+          {editing && <button className="pt-mini-btn" onClick={addRow}>+ Add driver</button>}
+          <button className="pt-subtab" data-active={editing} onClick={() => setEditing(!editing)}>
+            {editing ? 'Done editing' : 'Edit'}
+          </button>
+        </div>
       </div>
 
       <div className="pt-dash-grid pt-dash-grid--tiles">
@@ -476,39 +711,61 @@ function DriverInfo() {
         </div>
       </div>
 
-      <div className="pt-db-controls">
-        <input className="pt-search" placeholder="Search name, Discord, cars, notes…"
-               value={q} onChange={e => setQ(e.target.value)} />
-        <div className="pt-subtabs">
-          {DB_STATUSES.map(s => (
-            <button key={s} className="pt-subtab" data-active={s === status}
-                    onClick={() => setStatus(s)}>{s}</button>
-          ))}
+      {editing && (
+        <div className="pt-note">
+          Edits save in this browser only. <strong>Export JSON</strong> → paste over the
+          <span className="mono"> driverDB</span> block in <span className="mono">portal-data.js</span> (or
+          send to Claude) to publish. Filters still work while editing.
         </div>
-      </div>
+      )}
 
       <div className="pt-db">
         <div className="pt-db-row pt-db-row--head mono">
-          <span>STATUS</span><span>NAME</span><span>DISCORD</span><span>iR NAME / ID</span>
-          <span>SC iR</span><span>FM iR</span><span>SC LIC</span><span>FM LIC</span>
-          <span>CARS</span><span>REGION</span><span>NOTES</span>
+          {DB_COLS.map(c => (
+            <button key={c.key} className="pt-db-sort" data-active={sort.key === c.key} onClick={() => clickSort(c.key)}>
+              {c.label}{sort.key === c.key ? (sort.dir === 1 ? ' ▲' : ' ▼') : ''}
+            </button>
+          ))}
+          <span />
         </div>
-        {list.map((d, i) => (
-          <div className="pt-db-row" key={i}>
-            <span className="pt-db-status" data-status={d.status}>{d.status}</span>
-            <span className="pt-db-name">{d.name || '—'}</span>
-            <span className="mono">{d.discord}</span>
-            <span className="pt-db-irname">{d.iracingName || '—'}{d.iracingId && <em className="mono"> #{d.iracingId}</em>}</span>
-            <span className="mono">{d.scIr || '—'}</span>
-            <span className="mono">{d.fmIr || '—'}</span>
-            <span className="mono">{d.scLic || '—'}</span>
-            <span className="mono">{d.fmLic || '—'}</span>
-            <span>{d.prefCars || '—'}</span>
-            <span className="mono">{d.region || '—'}</span>
-            <span className="pt-db-notes">{d.notes}</span>
+        <div className="pt-db-row pt-db-row--filters">
+          {DB_COLS.map(c => (
+            <input key={c.key} className="pt-db-filter mono" placeholder="filter"
+                   value={filters[c.key] || ''}
+                   onChange={e => setFilters(f => ({ ...f, [c.key]: e.target.value }))} />
+          ))}
+          <button className="pt-en-x" title="Clear filters" onClick={() => setFilters({})}>×</button>
+        </div>
+        {view.map(({ d, i }) => (
+          <div className="pt-db-row" key={i} data-editing={editing}>
+            {editing ? (
+              DB_COLS.map(c => (
+                <input key={c.key} className="pt-db-edit mono" value={d[c.key] || ''}
+                       onChange={e => setCell(i, c.key, e.target.value)} />
+              ))
+            ) : (
+              <>
+                <span className="pt-db-status" data-status={d.status}>{d.status}</span>
+                <span className="pt-db-name">{d.name || '—'}</span>
+                <span className="mono">{d.discord}</span>
+                <span>{d.iracingName || '—'}</span>
+                <span className="mono">{d.iracingId || '—'}</span>
+                <span className="mono">{d.scIr || '—'}</span>
+                <span className="mono">{d.fmIr || '—'}</span>
+                <span className="mono">{d.scLic || '—'}</span>
+                <span className="mono">{d.fmLic || '—'}</span>
+                <span>{d.prefCars || '—'}</span>
+                <span className="mono">{d.region || '—'}</span>
+                <span className="mono">{d.joined || '—'}</span>
+                <span className="pt-db-notes">{d.notes}</span>
+              </>
+            )}
+            {editing
+              ? <button className="pt-en-x" title="Delete driver" onClick={() => delRow(i)}>×</button>
+              : <span />}
           </div>
         ))}
-        {list.length === 0 && <div className="pt-empty">No drivers match.</div>}
+        {view.length === 0 && <div className="pt-empty">No drivers match.</div>}
       </div>
     </div>
   );
@@ -518,6 +775,13 @@ function DriverInfo() {
 function Portal({ user, onLogout }) {
   const [tab, setTab] = useState('dash');
   const [localMap, setLocalMap] = useState(loadLocalSignups);
+  const [ov, setOv] = useState(loadOverrides);
+  const patchOv = (patch) => setOv(prev => {
+    const next = { ...prev, ...patch };
+    for (const k of Object.keys(next)) if (next[k] === undefined) delete next[k];
+    store.set(OVERRIDE_KEY, JSON.stringify(next));
+    return next;
+  });
   const isAdmin = user.role === 'admin';
 
   const TABS = [
@@ -549,12 +813,12 @@ function Portal({ user, onLogout }) {
         </div>
       </header>
       <main className="pt-main">
-        {tab === 'dash'       && <Dashboard user={user} localMap={localMap} goto={setTab} isAdmin={isAdmin} />}
+        {tab === 'dash'       && <Dashboard user={user} localMap={localMap} goto={setTab} isAdmin={isAdmin} ov={ov} />}
         {tab === 'events'     && <Events user={user} isAdmin={isAdmin} localMap={localMap} setLocalMap={setLocalMap} />}
-        {tab === 'schedule'   && <Schedule />}
-        {tab === 'rosters'    && <Rosters localMap={localMap} />}
+        {tab === 'schedule'   && <Schedule isAdmin={isAdmin} ov={ov} patchOv={patchOv} />}
+        {tab === 'rosters'    && <Rosters localMap={localMap} isAdmin={isAdmin} ov={ov} patchOv={patchOv} />}
         {tab === 'paints'     && <Paints />}
-        {tab === 'driverinfo' && isAdmin && <DriverInfo />}
+        {tab === 'driverinfo' && isAdmin && <DriverInfo ov={ov} patchOv={patchOv} />}
       </main>
       <footer className="pt-foot mono">
         ECLIPSE COMPETITION · TEAM PORTAL · IN DEVELOPMENT — DATA MAY LAG THE DISCORD

@@ -308,26 +308,97 @@
 .pt-paint-cta { margin-top: 16px; font-size: 11px; letter-spacing: 0.12em; color: var(--ec-accent-text); }
 @media (max-width: 700px) { .pt-paints { grid-template-columns: 1fr; } }
 
+/* ============ EDIT MODE PRIMITIVES ============ */
+.pt-input {
+  background: var(--ec-bg);
+  border: 1px solid var(--ec-line);
+  color: var(--ec-light);
+  padding: 6px 9px; font-size: 13px;
+  font-family: 'Inter', sans-serif;
+  outline: none; min-width: 0;
+}
+.pt-input:focus { border-color: var(--ec-accent); }
+.pt-input--xs { width: 52px; }
+.pt-input--sm { width: 110px; }
+.pt-input--title { font-family: 'Saira Condensed', sans-serif; font-style: italic; font-weight: 700; font-size: 20px; text-transform: uppercase; flex: 1; }
+.pt-input--cad { font-size: 11px; width: 320px; max-width: 45%; }
+.pt-input--driver { width: 190px; font-size: 12px; }
+.pt-mini-btn {
+  background: var(--ec-bg-2); border: 1px solid var(--ec-line);
+  color: var(--ec-light-2); padding: 7px 14px; cursor: pointer;
+  font-family: 'JetBrains Mono', monospace; font-size: 11px;
+  letter-spacing: 0.08em; text-transform: uppercase;
+}
+.pt-mini-btn:hover { border-color: var(--ec-accent); color: var(--ec-light); }
+.pt-mini-btn--warn:hover { border-color: var(--ec-red); color: var(--ec-red); }
+.pt-round--edit { display: flex; gap: 8px; align-items: center; padding: 6px 0; border-top: 1px solid var(--ec-line); }
+.pt-round--edit .pt-input:last-of-type { flex: 1; }
+.pt-add-round { margin-top: 10px; }
+.pt-sched-controls { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; padding-bottom: 6px; }
+
+/* ============ LINEUP CARS ============ */
+.pt-cars { display: flex; flex-direction: column; gap: 10px; }
+.pt-car {
+  display: flex; gap: 16px; align-items: flex-start;
+  background: var(--ec-bg); border: 1px solid var(--ec-line);
+  padding: 12px 16px;
+}
+.pt-car-num {
+  display: flex; align-items: center; gap: 6px;
+  font-family: 'Saira Condensed', sans-serif; font-style: italic; font-weight: 800;
+  font-size: 22px; color: var(--ec-accent-text); min-width: 64px;
+}
+.pt-car-drivers { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; flex: 1; }
+.pt-chip {
+  display: inline-flex; align-items: center; gap: 6px;
+  background: var(--ec-bg-3); border: 1px solid var(--ec-line);
+  padding: 5px 10px; font-size: 13px;
+}
+.pt-chip button {
+  background: none; border: none; color: var(--ec-red);
+  cursor: pointer; font-size: 14px; padding: 0;
+}
+.pt-empty-inline { font-size: 10px; color: var(--ec-mute-dark); letter-spacing: 0.12em; }
+
 /* ============ DRIVER DATABASE (admin) ============ */
 .pt-tab[data-admin="true"][data-active="false"] { color: var(--ec-amber); opacity: 0.8; }
 .pt-dash-grid--tiles { grid-template-columns: repeat(4, 1fr); }
 .pt-dash-card--static { cursor: default; }
 .pt-dash-card--static:hover { border-color: var(--ec-line); }
-.pt-db-controls { display: flex; gap: 16px; flex-wrap: wrap; align-items: center; }
 .pt-db { border: 1px solid var(--ec-line); overflow-x: auto; }
 .pt-db-row {
   display: grid;
-  grid-template-columns: 70px 150px 140px 190px 56px 56px 62px 62px 110px 70px minmax(160px, 1fr);
-  gap: 10px; padding: 9px 14px;
+  grid-template-columns: 68px 140px 130px 150px 70px 52px 52px 58px 58px 100px 64px 84px minmax(150px, 1fr) 24px;
+  gap: 8px; padding: 8px 14px;
   border-bottom: 1px solid var(--ec-line);
   background: var(--ec-bg-2); font-size: 12.5px; align-items: baseline;
-  min-width: 1180px;
+  min-width: 1330px;
 }
 .pt-db-row:last-child { border-bottom: none; }
 .pt-db-row--head {
-  font-size: 9.5px; letter-spacing: 0.12em; color: var(--ec-mute-dark);
-  background: var(--ec-bg); position: sticky; top: 0;
+  font-size: 9.5px; letter-spacing: 0.08em; color: var(--ec-mute-dark);
+  background: var(--ec-bg); position: sticky; top: 0; align-items: center;
 }
+.pt-db-sort {
+  background: none; border: none; padding: 0; cursor: pointer;
+  font: inherit; color: inherit; letter-spacing: inherit;
+  text-align: left; text-transform: uppercase; white-space: nowrap;
+}
+.pt-db-sort:hover, .pt-db-sort[data-active="true"] { color: var(--ec-accent-text); }
+.pt-db-row--filters { background: var(--ec-bg); padding-top: 6px; padding-bottom: 6px; align-items: center; }
+.pt-db-filter {
+  background: var(--ec-bg-2); border: 1px solid var(--ec-line);
+  color: var(--ec-light); font-size: 11px; padding: 4px 7px;
+  outline: none; min-width: 0; width: 100%;
+}
+.pt-db-filter:focus { border-color: var(--ec-accent); }
+.pt-db-filter::placeholder { color: var(--ec-mute-dark); }
+.pt-db-edit {
+  background: var(--ec-bg); border: 1px solid var(--ec-line);
+  color: var(--ec-light); font-size: 12px; padding: 4px 7px;
+  outline: none; min-width: 0; width: 100%;
+}
+.pt-db-edit:focus { border-color: var(--ec-accent); }
 .pt-db-status {
   font-family: 'JetBrains Mono', monospace; font-size: 10px; letter-spacing: 0.08em;
 }
