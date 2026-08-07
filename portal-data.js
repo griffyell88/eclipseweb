@@ -12,7 +12,17 @@ window.EC_PORTAL = {
     // gets the driver view. Admin WRITE access is enforced server-side by the
     // admins table in Supabase (supabase-setup.sql) — this list only shapes UI.
     adminDiscord: ["griffyell88", "swifty2352", "titussherlock31", "enbeesamon", "keewoe", ".tristanm"],
+    // Optional bulletproof fallback: Discord user IDs (right-click a user with
+    // Developer Mode on → Copy User ID). Add here AND in the Supabase admins
+    // table (fix-admin.sql shows how) if a username ever fails to match.
+    adminDiscordIds: [],
   },
+
+  // ── TEAM TOOLS ─────────────────────────────────────────────────────────────
+  tools: [
+    { name: "iRacePlan", url: "https://iraceplan.com/",    note: "Race & stint planning" },
+    { name: "Garage 61", url: "https://garage61.net/app",  note: "Telemetry & lap data" },
+  ],
 
   // ── EVENTS & SIGNUPS ───────────────────────────────────────────────────────
   // mode: "self"  → drivers sign themselves up (state: confirmed)

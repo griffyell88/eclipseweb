@@ -54,10 +54,17 @@ const localAuth = {
 function mapSession(session) {
   if (!session) return null;
   const m = session.user.user_metadata || {};
-  const username = String(m.name || m.full_name || '').split('#')[0].toLowerCase();
-  const display = (m.custom_claims && m.custom_claims.global_name) || m.full_name || m.name || username || 'Driver';
+  // Discord accounts present the username differently depending on account age
+  // (legacy "Name#1234", migrated "name#0", new plain "name") and sometimes in
+  // different fields — check all of them. Server-side access (RLS) does the same.
+  const cands = [m.name, m.preferred_username, m.full_name]
+    .filter(Boolean)
+    .map(s => String(s).split('#')[0].toLowerCase());
   const admins = (P.auth.adminDiscord || []).map(a => a.toLowerCase());
-  return { id: session.user.id, name: display, username, role: admins.includes(username) ? 'admin' : 'driver' };
+  const adminIds = (P.auth.adminDiscordIds || []).map(String);
+  const isAdmin = cands.some(c => admins.includes(c)) || adminIds.includes(String(m.provider_id || ''));
+  const display = (m.custom_claims && m.custom_claims.global_name) || m.full_name || m.name || cands[0] || 'Driver';
+  return { id: session.user.id, name: display, username: cands[0] || '', role: isAdmin ? 'admin' : 'driver' };
 }
 
 // Best-effort "are you in the Eclipse server" gate. Real data protection is
@@ -259,6 +266,21 @@ function Dashboard({ user, api, goto, isAdmin, ov }) {
           </button>
         )}
       </div>
+      {(P.tools || []).length > 0 && (
+        <>
+          <div className="pt-rb-cls mono" style={{ marginTop: 8 }}>TEAM TOOLS</div>
+          <div className="pt-paints">
+            {P.tools.map((t, i) => (
+              <a className="pt-paint-card" key={i} href={t.url} target="_blank" rel="noopener noreferrer">
+                <div className="pt-dc-label">TOOL</div>
+                <div className="pt-dc-big">{t.name}</div>
+                <div className="pt-dc-sub">{t.note}</div>
+                <div className="pt-paint-cta mono">OPEN →</div>
+              </a>
+            ))}
+          </div>
+        </>
+      )}
       {LIVE ? (
         isAdmin && (
           <div className="pt-note">
