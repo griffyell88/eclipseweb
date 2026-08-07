@@ -15,7 +15,10 @@ window.EC_PORTAL = {
     // Optional bulletproof fallback: Discord user IDs (right-click a user with
     // Developer Mode on → Copy User ID). Add here AND in the Supabase admins
     // table (fix-admin.sql shows how) if a username ever fails to match.
-    adminDiscordIds: [],
+    adminDiscordIds: [
+      "529655572673462293", // griffyell88
+      "696497566921130064", // swifty2352
+    ],
   },
 
   // ── TEAM TOOLS ─────────────────────────────────────────────────────────────
