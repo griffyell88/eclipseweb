@@ -137,9 +137,13 @@ function Nav() {
         <li><a href="#programs" onClick={close}>Programs</a></li>
         <li><a href="#gallery" onClick={close}>Media</a></li>
         <li><a href="#contact" onClick={close}>Partner</a></li>
+        <li className="nav-mobile-cta"><a href="portal.html" onClick={close}>Driver Login</a></li>
         <li className="nav-mobile-cta"><a href="#join" onClick={close}>Join the Team</a></li>
       </ul>
-      <a className="cta" href="#join">Join the Team</a>
+      <div className="nav-ctas">
+        <a className="cta cta--ghost" href="portal.html">Login</a>
+        <a className="cta" href="#join">Join the Team</a>
+      </div>
     </nav>
   );
 }

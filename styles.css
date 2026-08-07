@@ -233,6 +233,14 @@ body:has(.ribbon) .hero { padding-top: 40px; }
   border: 1px solid var(--ec-accent);
   clip-path: polygon(8px 0, 100% 0, calc(100% - 8px) 100%, 0 100%);
 }
+.nav-ctas { display: flex; align-items: center; gap: 10px; }
+.nav .cta--ghost {
+  background: transparent;
+  color: var(--ec-light);
+  border-color: var(--ec-line);
+  transition: border-color 0.2s, color 0.2s;
+}
+.nav .cta--ghost:hover { border-color: var(--ec-accent); color: var(--ec-accent-text); }
 /* Nav mobile behavior handled in the mobile block at the bottom of this file */
 
 /* ============ HERO ============ */
@@ -1090,6 +1098,7 @@ body:has(.ribbon) .hero { padding-top: 40px; }
   .nav .brand .wm { font-size: 15px; }
   .nav .brand img { height: 24px; }
   .nav .cta { display: none; }
+  .nav-ctas { display: none; }
   .nav-toggle { display: block; }
   .nav ul {
     display: flex; flex-direction: column; gap: 0;
