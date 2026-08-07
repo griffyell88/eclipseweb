@@ -985,7 +985,7 @@ function Portal({ user, onLogout }) {
           <button className="pt-logout" onClick={onLogout}>Log out</button>
         </div>
       </header>
-      <main className="pt-main">
+      <main className={"pt-main" + (tab === 'driverinfo' ? ' pt-main--wide' : '')}>
         {tab === 'dash'       && <Dashboard user={user} api={api} goto={setTab} isAdmin={isAdmin} ov={ov} />}
         {tab === 'events'     && <Events user={user} isAdmin={isAdmin} api={api} />}
         {tab === 'schedule'   && <Schedule isAdmin={isAdmin} ov={ov} patchOv={patchOv} publish={publish} />}
