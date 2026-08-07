@@ -1,16 +1,18 @@
 // Eclipse Competition — Driver Portal
-// Structure mirrors app.jsx: no build step, data comes from portal-data.js.
+// Structure mirrors app.jsx: no build step. Data: portal-data.js (+ Supabase).
 //
-// AUTH DISCLAIMER: the login below is a curtain for the build phase — it hashes
-// credentials client-side against portal-data.js, which ships to the browser.
-// The swap to real auth (Supabase + Discord login) is isolated in `auth` below.
-//
-// ADMIN EDITING: schedule/lineup/driver-DB edits save to THIS BROWSER ONLY
-// (localStorage overrides on top of portal-data.js). Each editable section has
-// an Export button — copy the JSON and paste it into portal-data.js to make
-// changes permanent for everyone. This all moves server-side with Supabase.
+// TWO MODES, switched by portal-config.js:
+//  BUILD MODE (no keys): username/password curtain, per-browser saves. The
+//    original demo behavior — nothing is shared, nothing is secure.
+//  LIVE MODE (keys set): "Login with Discord" via Supabase. Signups are shared
+//    team-wide in the database, admin edits publish for everyone on "Done
+//    editing", the driver DB is served ONLY to admins (enforced server-side by
+//    supabase-setup.sql), and signups announce to Discord via webhook.
 const { useState, useEffect, useMemo } = React;
 const P = window.EC_PORTAL;
+const CFG = window.EC_CONFIG || {};
+const LIVE = !!(CFG.SUPABASE_URL && CFG.SUPABASE_ANON_KEY && window.supabase);
+const sb = LIVE ? window.supabase.createClient(CFG.SUPABASE_URL, CFG.SUPABASE_ANON_KEY) : null;
 
 // Guarded storage — same rationale as app.jsx (Safari/Brave can throw).
 const store = {
@@ -20,14 +22,13 @@ const store = {
 };
 
 async function sha256(text) {
-  // crypto.subtle needs a secure context (https or localhost). file:// won't work.
   const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text));
   return [...new Uint8Array(buf)].map(x => x.toString(16).padStart(2, '0')).join('');
 }
 
-// ── Auth layer: the ONLY thing that changes when Supabase lands ──────────────
+// ── BUILD-MODE auth (curtain). Goes away entirely once LIVE. ────────────────
 const SESSION_KEY = 'ec-portal-session';
-const auth = {
+const localAuth = {
   current() {
     const raw = store.get(SESSION_KEY);
     if (!raw) return null;
@@ -49,16 +50,45 @@ const auth = {
   logout() { store.del(SESSION_KEY); },
 };
 
-// ── Local persistence (browser-local until the backend exists) ───────────────
+// ── LIVE-MODE auth helpers ───────────────────────────────────────────────────
+function mapSession(session) {
+  if (!session) return null;
+  const m = session.user.user_metadata || {};
+  const username = String(m.name || m.full_name || '').split('#')[0].toLowerCase();
+  const display = (m.custom_claims && m.custom_claims.global_name) || m.full_name || m.name || username || 'Driver';
+  const admins = (P.auth.adminDiscord || []).map(a => a.toLowerCase());
+  return { id: session.user.id, name: display, username, role: admins.includes(username) ? 'admin' : 'driver' };
+}
+
+// Best-effort "are you in the Eclipse server" gate. Real data protection is
+// the server-side rules in supabase-setup.sql — this just keeps randoms out
+// of the UI. Verified once per account, then remembered.
+async function checkGuild(session) {
+  const gid = CFG.DISCORD_GUILD_ID;
+  if (!gid) return true;
+  const okKey = 'ec-guild-ok-' + session.user.id;
+  if (store.get(okKey) === '1') return true;
+  const token = session.provider_token;
+  if (!token) return true; // token only exists right after login; skip on refresh
+  try {
+    const res = await fetch('https://discord.com/api/users/@me/guilds', {
+      headers: { Authorization: 'Bearer ' + token },
+    });
+    if (!res.ok) return true;
+    const guilds = await res.json();
+    const ok = Array.isArray(guilds) && guilds.some(g => g.id === gid);
+    if (ok) store.set(okKey, '1');
+    return ok;
+  } catch (e) { return true; }
+}
+
+// ── Local persistence (BUILD MODE only) ─────────────────────────────────────
 const SIGNUP_KEY = 'ec-portal-signups';
 function loadLocalSignups() {
   try { return JSON.parse(store.get(SIGNUP_KEY) || '{}'); } catch (e) { return {}; }
 }
 function saveLocalSignups(map) { store.set(SIGNUP_KEY, JSON.stringify(map)); }
-function allEntries(ev, localMap) { return [...ev.entries, ...(localMap[ev.id] || [])]; }
 
-// Admin edits live here as overrides on top of portal-data.js:
-// { schedules: [...]?, lineups: { [eventId]: { [class]: [{num, drivers[]}] } }?, driverDB: [...]? }
 const OVERRIDE_KEY = 'ec-portal-overrides';
 function loadOverrides() {
   try { return JSON.parse(store.get(OVERRIDE_KEY) || '{}'); } catch (e) { return {}; }
@@ -67,8 +97,6 @@ function loadOverrides() {
 const STATE_LABEL = { confirmed: 'CONFIRMED', available: 'AVAILABLE', tentative: 'TENTATIVE', reserve: 'RESERVE' };
 
 // ── Date automation ──────────────────────────────────────────────────────────
-// A round/event is "past" starting the day AFTER its end date, so race day
-// itself still shows as upcoming (same rule as the public site's calendar).
 function isPast(iso) {
   if (!iso) return false;
   const end = new Date(iso + 'T23:59:59');
@@ -100,17 +128,17 @@ function ExportBtn({ data, label }) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-function Login({ onAuthed }) {
+function Login({ onAuthed, gateErr }) {
   const [user, setUser] = useState('');
   const [pass, setPass] = useState('');
   const [err, setErr] = useState('');
   const [busy, setBusy] = useState(false);
 
-  const submit = async (e) => {
+  const submitLocal = async (e) => {
     e.preventDefault();
     setErr(''); setBusy(true);
     try {
-      const u = await auth.login(user, pass);
+      const u = await localAuth.login(user, pass);
       onAuthed(u);
     } catch (ex) {
       setErr(ex.message);
@@ -119,41 +147,69 @@ function Login({ onAuthed }) {
     }
   };
 
+  const discordLogin = async () => {
+    setErr(''); setBusy(true);
+    const { error } = await sb.auth.signInWithOAuth({
+      provider: 'discord',
+      options: {
+        scopes: 'identify guilds',
+        redirectTo: window.location.origin + window.location.pathname,
+      },
+    });
+    if (error) { setErr(error.message); setBusy(false); }
+  };
+
   return (
     <div className="pt-login">
-      <form className="pt-login-card" onSubmit={submit}>
+      <form className="pt-login-card" onSubmit={LIVE ? (e) => e.preventDefault() : submitLocal}>
         <img src="assets/logo-white.png" alt="Eclipse Competition" className="pt-login-logo" />
         <div className="pt-login-eyebrow">/ TEAM PORTAL · RESTRICTED</div>
         <h1 className="pt-login-title">Driver<br/>Access</h1>
-        <label className="pt-field">
-          <span>Username</span>
-          <input type="text" value={user} onChange={e => setUser(e.target.value)}
-                 autoComplete="username" autoFocus required />
-        </label>
-        <label className="pt-field">
-          <span>Password</span>
-          <input type="password" value={pass} onChange={e => setPass(e.target.value)}
-                 autoComplete="current-password" required />
-        </label>
-        {err && <div className="pt-login-err">{err}</div>}
-        <button className="btn btn-primary pt-login-btn" disabled={busy}>
-          {busy ? 'Checking…' : 'Enter the garage →'}
-        </button>
-        <div className="pt-login-foot">
-          Driver accounts &amp; Discord login coming soon.<br/>
-          Not a member? <a href={(window.EC_DATA && window.EC_DATA.brand.discord) || 'https://discord.gg/CBtQMmcksE'}>Join the Discord</a>
-        </div>
+
+        {LIVE ? (
+          <>
+            <button type="button" className="btn btn-primary pt-login-btn" onClick={discordLogin} disabled={busy}>
+              {busy ? 'Sending you to Discord…' : 'Login with Discord →'}
+            </button>
+            {(err || gateErr) && <div className="pt-login-err">{err || gateErr}</div>}
+            <div className="pt-login-foot">
+              Uses your Discord account — members of the Eclipse server only.<br/>
+              Not a member? <a href={(window.EC_DATA && window.EC_DATA.brand.discord) || 'https://discord.gg/CBtQMmcksE'}>Join the Discord</a>
+            </div>
+          </>
+        ) : (
+          <>
+            <label className="pt-field">
+              <span>Username</span>
+              <input type="text" value={user} onChange={e => setUser(e.target.value)}
+                     autoComplete="username" autoFocus required />
+            </label>
+            <label className="pt-field">
+              <span>Password</span>
+              <input type="password" value={pass} onChange={e => setPass(e.target.value)}
+                     autoComplete="current-password" required />
+            </label>
+            {err && <div className="pt-login-err">{err}</div>}
+            <button className="btn btn-primary pt-login-btn" disabled={busy}>
+              {busy ? 'Checking…' : 'Enter the garage →'}
+            </button>
+            <div className="pt-login-foot">
+              Build mode — Discord login activates once the backend keys are in.<br/>
+              Not a member? <a href={(window.EC_DATA && window.EC_DATA.brand.discord) || 'https://discord.gg/CBtQMmcksE'}>Join the Discord</a>
+            </div>
+          </>
+        )}
       </form>
     </div>
   );
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-function Dashboard({ user, localMap, goto, isAdmin, ov }) {
+function Dashboard({ user, api, goto, isAdmin, ov }) {
   const open = liveEvents().filter(e => e.status === 'open');
   const next = open[0];
-  const nextEntries = next ? allEntries(next, localMap) : [];
-  const db = ov.driverDB || P.driverDB;
+  const nextEntries = next ? api.entriesFor(next) : [];
+  const db = ov.driverDB || P.driverDB || [];
   return (
     <div className="pt-panel">
       <div className="pt-welcome">
@@ -195,32 +251,30 @@ function Dashboard({ user, localMap, goto, isAdmin, ov }) {
           </button>
         )}
       </div>
-      <div className="pt-note">
-        <strong>Build note:</strong> signups{isAdmin ? ' and admin edits' : ''} save to this
-        browser only for now — the team-wide backend (Discord login) is the next phase.
-        {isAdmin && <> Use the Export buttons to copy edits into <span className="mono">portal-data.js</span> so everyone gets them.</>}
-      </div>
+      {LIVE ? (
+        isAdmin && (
+          <div className="pt-note">
+            <strong>Live mode:</strong> signups are shared team-wide and announce to
+            Discord. Your edits publish to everyone when you hit “Done editing”.
+          </div>
+        )
+      ) : (
+        <div className="pt-note">
+          <strong>Build note:</strong> signups{isAdmin ? ' and admin edits' : ''} save to this
+          browser only — Discord login + shared data activate once the backend keys
+          are in <span className="mono">portal-config.js</span>.
+        </div>
+      )}
     </div>
   );
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-function EventCard({ ev, user, localMap, setLocalMap, isAdmin }) {
-  const localEntries = (localMap[ev.id] || []);
-  const entries = [...ev.entries, ...localEntries];
-  const mine = entries.find(en => en.driver === user.name);
+function EventCard({ ev, user, api, isAdmin }) {
+  const entries = api.entriesFor(ev);
+  const mine = api.mineFor(ev);
   const locked = ev.status !== 'open';
   const firmState = ev.mode === 'admin' ? 'available' : 'confirmed';
-
-  const join = (cls, state) => {
-    if (mine || locked) return;
-    const next = { ...localMap, [ev.id]: [...localEntries, { driver: user.name, cls, state }] };
-    setLocalMap(next); saveLocalSignups(next);
-  };
-  const leave = () => {
-    const next = { ...localMap, [ev.id]: localEntries.filter(en => en.driver !== user.name) };
-    setLocalMap(next); saveLocalSignups(next);
-  };
 
   return (
     <div className={"pt-event" + (ev.featured ? " pt-event--featured" : "")} data-locked={locked}>
@@ -251,11 +305,8 @@ function EventCard({ ev, user, localMap, setLocalMap, isAdmin }) {
               <span className="pt-en-driver">{en.driver}</span>
               <span className="pt-en-cls mono">{en.cls}</span>
               <span className="pt-en-state" data-state={en.state}>{STATE_LABEL[en.state] || en.state.toUpperCase()}</span>
-              {isAdmin && localEntries.includes(en) && (
-                <button className="pt-en-x" title="Remove (admin)" onClick={() => {
-                  const next = { ...localMap, [ev.id]: localEntries.filter(x => x !== en) };
-                  setLocalMap(next); saveLocalSignups(next);
-                }}>×</button>
+              {isAdmin && api.canRemove(ev, en) && (
+                <button className="pt-en-x" title="Remove (admin)" onClick={() => api.remove(ev, en)}>×</button>
               )}
             </li>
           ))}
@@ -264,26 +315,26 @@ function EventCard({ ev, user, localMap, setLocalMap, isAdmin }) {
 
       <div className="pt-ev-actions">
         {mine ? (
-          localEntries.includes(mine)
+          api.canRemove(ev, mine)
             ? <>
                 <span className="pt-ev-in mono" data-state={mine.state}>
                   // YOU'RE IN — {mine.cls} · {STATE_LABEL[mine.state]}
                 </span>
-                <button className="btn pt-btn-sm" onClick={leave}>Withdraw</button>
+                <button className="btn pt-btn-sm" onClick={() => api.leave(ev)}>Withdraw</button>
               </>
             : <span className="pt-ev-in mono">// YOU'RE ON THE ENTRY LIST</span>
         ) : !locked && (
           <div className="pt-signup-rows">
             <div className="pt-signup-row">
               {ev.classes.map(cls => (
-                <button key={cls} className="btn btn-primary pt-btn-sm" onClick={() => join(cls, firmState)}>
+                <button key={cls} className="btn btn-primary pt-btn-sm" onClick={() => api.join(ev, cls, firmState)}>
                   {ev.mode === 'admin' ? `Available — ${cls}` : `Sign up — ${cls}`}
                 </button>
               ))}
             </div>
             <div className="pt-signup-row">
               {ev.classes.map(cls => (
-                <button key={cls} className="btn pt-btn-sm pt-btn-tent" onClick={() => join(cls, 'tentative')}>
+                <button key={cls} className="btn pt-btn-sm pt-btn-tent" onClick={() => api.join(ev, cls, 'tentative')}>
                   Tentative — {cls}
                 </button>
               ))}
@@ -295,7 +346,7 @@ function EventCard({ ev, user, localMap, setLocalMap, isAdmin }) {
   );
 }
 
-function Events({ user, isAdmin, localMap, setLocalMap }) {
+function Events({ user, isAdmin, api }) {
   const evs = liveEvents();
   return (
     <div className="pt-panel">
@@ -305,8 +356,7 @@ function Events({ user, isAdmin, localMap, setLocalMap }) {
       </div>
       <div className="pt-events">
         {evs.map(ev => (
-          <EventCard key={ev.id} ev={ev} user={user} localMap={localMap}
-                     setLocalMap={setLocalMap} isAdmin={isAdmin} />
+          <EventCard key={ev.id} ev={ev} user={user} api={api} isAdmin={isAdmin} />
         ))}
         {evs.length === 0 && (
           <div className="pt-empty">No upcoming events — new ones appear here when they're added to portal-data.js.</div>
@@ -317,7 +367,7 @@ function Events({ user, isAdmin, localMap, setLocalMap }) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-function Schedule({ isAdmin, ov, patchOv }) {
+function Schedule({ isAdmin, ov, patchOv, publish }) {
   const [showPast, setShowPast] = useState(false);
   const [editing, setEditing] = useState(false);
   const schedules = ov.schedules || P.schedules;
@@ -332,6 +382,7 @@ function Schedule({ isAdmin, ov, patchOv }) {
   const delRound = (si, ri) => mutate(s => s[si].rounds.splice(ri, 1));
   const setSeries = (si, field, val) => mutate(s => { s[si][field] = val; });
   const hasOverride = !!ov.schedules;
+  const doneEditing = () => { setEditing(false); publish('schedules'); };
 
   return (
     <div className="pt-panel">
@@ -340,14 +391,14 @@ function Schedule({ isAdmin, ov, patchOv }) {
         <div className="pt-sched-controls">
           {isAdmin && (
             <>
-              {hasOverride && <ExportBtn data={schedules} label="Export JSON" />}
-              {hasOverride && !editing && (
+              {hasOverride && !LIVE && <ExportBtn data={schedules} label="Export JSON" />}
+              {hasOverride && !editing && !LIVE && (
                 <button className="pt-mini-btn pt-mini-btn--warn" onClick={() => {
                   if (window.confirm('Discard local schedule edits and go back to what portal-data.js says?')) patchOv({ schedules: undefined });
                 }}>Reset to file</button>
               )}
-              <button className="pt-subtab" data-active={editing} onClick={() => setEditing(!editing)}>
-                {editing ? 'Done editing' : 'Edit schedules'}
+              <button className="pt-subtab" data-active={editing} onClick={() => editing ? doneEditing() : setEditing(true)}>
+                {editing ? (LIVE ? 'Done — publish' : 'Done editing') : 'Edit schedules'}
               </button>
             </>
           )}
@@ -359,10 +410,11 @@ function Schedule({ isAdmin, ov, patchOv }) {
 
       {editing && (
         <div className="pt-note">
-          Edits save in this browser only. When the schedule's right, hit <strong>Export
-          JSON</strong> and paste it over the <span className="mono">schedules</span> block in
-          <span className="mono"> portal-data.js</span> (or send it to Claude) to make it live for everyone.
-          Dates: <span className="mono">iso</span> = the round's last day, <span className="mono">YYYY-MM-DD</span> — it drives the auto-hiding.
+          {LIVE
+            ? <>Changes go live for the whole team when you hit <strong>Done — publish</strong>.</>
+            : <>Edits save in this browser only. When the schedule's right, <strong>Export JSON</strong> and
+               paste it over the <span className="mono">schedules</span> block in <span className="mono">portal-data.js</span>.</>}
+          {' '}Dates: <span className="mono">iso</span> = the round's last day, <span className="mono">YYYY-MM-DD</span> — it drives the auto-hiding.
         </div>
       )}
 
@@ -423,15 +475,14 @@ function Schedule({ isAdmin, ov, patchOv }) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Rosters: per-event lineups (class → car number → drivers), the signup pool
-// underneath each, and the fixed FIS roster.
-function Rosters({ localMap, isAdmin, ov, patchOv }) {
+function Rosters({ api, isAdmin, ov, patchOv, publish }) {
   const [editing, setEditing] = useState(false);
   const openEvents = liveEvents().filter(e => e.status === 'open');
   const lineups = ov.lineups || {};
   const getLineup = (ev) => lineups[ev.id] || ev.lineup || {};
   const setLineup = (ev, lu) => patchOv({ lineups: { ...lineups, [ev.id]: lu } });
-  const db = ov.driverDB || P.driverDB;
+  const db = ov.driverDB || P.driverDB || [];
+  const doneEditing = () => { setEditing(false); publish('lineups'); };
 
   const carOps = (ev, cls) => {
     const lu = getLineup(ev);
@@ -455,10 +506,10 @@ function Rosters({ localMap, isAdmin, ov, patchOv }) {
       <div className="pt-panel-head">
         <h2 className="pt-h2">Rosters</h2>
         <div className="pt-sched-controls">
-          {isAdmin && ov.lineups && <ExportBtn data={ov.lineups} label="Export lineups" />}
+          {isAdmin && ov.lineups && !LIVE && <ExportBtn data={ov.lineups} label="Export lineups" />}
           {isAdmin && (
-            <button className="pt-subtab" data-active={editing} onClick={() => setEditing(!editing)}>
-              {editing ? 'Done editing' : 'Edit lineups'}
+            <button className="pt-subtab" data-active={editing} onClick={() => editing ? doneEditing() : setEditing(true)}>
+              {editing ? (LIVE ? 'Done — publish' : 'Done editing') : 'Edit lineups'}
             </button>
           )}
         </div>
@@ -467,13 +518,14 @@ function Rosters({ localMap, isAdmin, ov, patchOv }) {
       {editing && (
         <div className="pt-note">
           Build each car: number + drivers (type a name — signups and the driver DB
-          autocomplete). Saves in this browser; <strong>Export lineups</strong> →
-          paste into each event's <span className="mono">lineup</span> in <span className="mono">portal-data.js</span> to publish.
+          autocomplete, Enter to add). {LIVE
+            ? <>Lineups go live for the team — and announce to Discord — when you hit <strong>Done — publish</strong>.</>
+            : <>Saves in this browser; <strong>Export lineups</strong> → paste into each event's <span className="mono">lineup</span> in <span className="mono">portal-data.js</span> to publish.</>}
         </div>
       )}
 
       {openEvents.map(ev => {
-        const entries = allEntries(ev, localMap);
+        const entries = api.entriesFor(ev);
         const listId = `dl-${ev.id}`;
         const suggestions = [...new Set([...entries.map(en => en.driver), ...db.map(d => d.name).filter(Boolean)])];
         return (
@@ -487,7 +539,6 @@ function Rosters({ localMap, isAdmin, ov, patchOv }) {
               {suggestions.map((n, i) => <option key={i} value={n} />)}
             </datalist>
 
-            {/* Lineup: class → car number → drivers */}
             {ev.classes.map(cls => {
               const ops = carOps(ev, cls);
               if (!editing && ops.cars.length === 0) return null;
@@ -531,7 +582,6 @@ function Rosters({ localMap, isAdmin, ov, patchOv }) {
               <div className="pt-empty">No lineup published yet{isAdmin ? ' — hit Edit lineups to build it' : ''}.</div>
             )}
 
-            {/* Signup pool */}
             {entries.length > 0 && (
               <div className="pt-rb-class">
                 <div className="pt-rb-cls mono">SIGNUP POOL</div>
@@ -602,7 +652,6 @@ function Paints() {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Admin-only: the driver database. Sortable + filterable per column, editable.
 const DB_COLS = [
   { key: 'status',      label: 'STATUS' },
   { key: 'name',        label: 'NAME' },
@@ -620,11 +669,11 @@ const DB_COLS = [
 ];
 const EMPTY_DRIVER = Object.fromEntries(DB_COLS.map(c => [c.key, '']));
 
-function DriverInfo({ ov, patchOv }) {
+function DriverInfo({ ov, patchOv, publish }) {
   const [sort, setSort] = useState({ key: null, dir: 1 });
   const [filters, setFilters] = useState({});
   const [editing, setEditing] = useState(false);
-  const db = ov.driverDB || P.driverDB;
+  const db = ov.driverDB || P.driverDB || [];
 
   const write = (next) => patchOv({ driverDB: next });
   const setCell = (idx, key, val) => write(db.map((d, i) => i === idx ? { ...d, [key]: val } : d));
@@ -635,6 +684,7 @@ function DriverInfo({ ov, patchOv }) {
     }
   };
   const addRow = () => { setFilters({}); setSort({ key: null, dir: 1 }); write([{ ...EMPTY_DRIVER, status: 'Trial' }, ...db]); };
+  const doneEditing = () => { setEditing(false); publish('driverDB'); };
 
   const clickSort = (key) => setSort(s => s.key === key ? (s.dir === 1 ? { key, dir: -1 } : { key: null, dir: 1 }) : { key, dir: 1 });
 
@@ -655,7 +705,7 @@ function DriverInfo({ ov, patchOv }) {
         if (col.num) {
           const an = parseFloat(av), bn = parseFloat(bv);
           if (isNaN(an) && isNaN(bn)) return 0;
-          if (isNaN(an)) return 1;   // blanks sink regardless of direction
+          if (isNaN(an)) return 1;
           if (isNaN(bn)) return -1;
           return (an - bn) * sort.dir;
         }
@@ -679,15 +729,15 @@ function DriverInfo({ ov, patchOv }) {
       <div className="pt-panel-head">
         <h2 className="pt-h2">Driver Info</h2>
         <div className="pt-sched-controls">
-          {ov.driverDB && <ExportBtn data={db} label="Export JSON" />}
-          {ov.driverDB && !editing && (
+          {(ov.driverDB || LIVE) && <ExportBtn data={db} label="Export JSON" />}
+          {ov.driverDB && !editing && !LIVE && (
             <button className="pt-mini-btn pt-mini-btn--warn" onClick={() => {
               if (window.confirm('Discard local driver DB edits and go back to what portal-data.js says?')) patchOv({ driverDB: undefined });
             }}>Reset to file</button>
           )}
           {editing && <button className="pt-mini-btn" onClick={addRow}>+ Add driver</button>}
-          <button className="pt-subtab" data-active={editing} onClick={() => setEditing(!editing)}>
-            {editing ? 'Done editing' : 'Edit'}
+          <button className="pt-subtab" data-active={editing} onClick={() => editing ? doneEditing() : setEditing(true)}>
+            {editing ? (LIVE ? 'Done — publish' : 'Done editing') : 'Edit'}
           </button>
         </div>
       </div>
@@ -713,9 +763,11 @@ function DriverInfo({ ov, patchOv }) {
 
       {editing && (
         <div className="pt-note">
-          Edits save in this browser only. <strong>Export JSON</strong> → paste over the
-          <span className="mono"> driverDB</span> block in <span className="mono">portal-data.js</span> (or
-          send to Claude) to publish. Filters still work while editing.
+          {LIVE
+            ? <>Changes save for all admins when you hit <strong>Done — publish</strong>. Drivers can never see this tab or its data.</>
+            : <>Edits save in this browser only. <strong>Export JSON</strong> → paste over the
+               <span className="mono"> driverDB</span> block in <span className="mono">portal-data.js</span> to publish.</>}
+          {' '}Filters still work while editing.
         </div>
       )}
 
@@ -774,15 +826,106 @@ function DriverInfo({ ov, patchOv }) {
 // ─────────────────────────────────────────────────────────────────────────────
 function Portal({ user, onLogout }) {
   const [tab, setTab] = useState('dash');
+  const isAdmin = user.role === 'admin';
+
+  // ── Signups: local map (build mode) or shared table (live mode) ────────────
   const [localMap, setLocalMap] = useState(loadLocalSignups);
-  const [ov, setOv] = useState(loadOverrides);
+  const [remote, setRemote] = useState({});
+  const refreshSignups = async () => {
+    const { data, error } = await sb.from('signups').select('*').order('created_at');
+    if (!error && data) {
+      const m = {};
+      for (const r of data) (m[r.event_id] = m[r.event_id] || []).push(r);
+      setRemote(m);
+    }
+  };
+  useEffect(() => {
+    if (!LIVE) return;
+    refreshSignups();
+    const ch = sb.channel('signups-live')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'signups' }, refreshSignups)
+      .subscribe();
+    return () => { sb.removeChannel(ch); };
+  }, []);
+
+  const api = LIVE ? {
+    entriesFor: (ev) => [
+      ...ev.entries,
+      ...(remote[ev.id] || []).map(r => ({ driver: r.driver_name, cls: r.cls, state: r.state, _row: r })),
+    ],
+    mineFor: (ev) => api.entriesFor(ev).find(en => en._row && en._row.user_id === user.id),
+    join: async (ev, cls, state) => {
+      const { error } = await sb.from('signups').insert({
+        event_id: ev.id, event_title: ev.title, cls, state,
+        driver_name: user.name, discord_username: user.username,
+      });
+      if (error) window.alert('Signup failed: ' + error.message);
+      refreshSignups();
+    },
+    leave: async (ev) => {
+      await sb.from('signups').delete().eq('event_id', ev.id).eq('user_id', user.id);
+      refreshSignups();
+    },
+    remove: async (ev, en) => {
+      if (!en._row) return;
+      await sb.from('signups').delete().eq('id', en._row.id);
+      refreshSignups();
+    },
+    canRemove: (ev, en) => !!en._row,
+  } : {
+    entriesFor: (ev) => [...ev.entries, ...(localMap[ev.id] || [])],
+    mineFor: (ev) => api.entriesFor(ev).find(en => en.driver === user.name),
+    join: (ev, cls, state) => {
+      const locals = localMap[ev.id] || [];
+      const next = { ...localMap, [ev.id]: [...locals, { driver: user.name, cls, state }] };
+      setLocalMap(next); saveLocalSignups(next);
+    },
+    leave: (ev) => {
+      const next = { ...localMap, [ev.id]: (localMap[ev.id] || []).filter(en => en.driver !== user.name) };
+      setLocalMap(next); saveLocalSignups(next);
+    },
+    remove: (ev, en) => {
+      const next = { ...localMap, [ev.id]: (localMap[ev.id] || []).filter(x => x !== en) };
+      setLocalMap(next); saveLocalSignups(next);
+    },
+    canRemove: (ev, en) => (localMap[ev.id] || []).includes(en),
+  };
+
+  // ── Docs: localStorage overrides (build) or portal_docs table (live) ───────
+  const [ov, setOv] = useState(() => (LIVE ? {} : loadOverrides()));
+  useEffect(() => {
+    if (!LIVE) return;
+    sb.from('portal_docs').select('key,data').then(({ data }) => {
+      if (!data) return;
+      const m = {};
+      for (const r of data) {
+        if (r.key === 'schedules') m.schedules = r.data;
+        if (r.key === 'lineups') m.lineups = r.data;
+        if (r.key === 'driver_db') m.driverDB = r.data;
+      }
+      setOv(m);
+    });
+  }, [user.id]);
+
   const patchOv = (patch) => setOv(prev => {
     const next = { ...prev, ...patch };
     for (const k of Object.keys(next)) if (next[k] === undefined) delete next[k];
-    store.set(OVERRIDE_KEY, JSON.stringify(next));
+    if (!LIVE) store.set(OVERRIDE_KEY, JSON.stringify(next));
     return next;
   });
-  const isAdmin = user.role === 'admin';
+
+  const publish = async (key) => {
+    if (!LIVE) return;
+    const dbKey = key === 'driverDB' ? 'driver_db' : key;
+    const payload = key === 'schedules' ? ov.schedules
+                  : key === 'lineups' ? (ov.lineups || {})
+                  : ov.driverDB;
+    if (payload === undefined || payload === null) return;
+    const { error } = await sb.from('portal_docs').upsert({
+      key: dbKey, data: payload, updated_at: new Date().toISOString(), updated_by: user.username,
+    });
+    if (error) window.alert('Publish failed: ' + error.message);
+  };
 
   const TABS = [
     { key: 'dash',       label: 'Dashboard' },
@@ -813,24 +956,64 @@ function Portal({ user, onLogout }) {
         </div>
       </header>
       <main className="pt-main">
-        {tab === 'dash'       && <Dashboard user={user} localMap={localMap} goto={setTab} isAdmin={isAdmin} ov={ov} />}
-        {tab === 'events'     && <Events user={user} isAdmin={isAdmin} localMap={localMap} setLocalMap={setLocalMap} />}
-        {tab === 'schedule'   && <Schedule isAdmin={isAdmin} ov={ov} patchOv={patchOv} />}
-        {tab === 'rosters'    && <Rosters localMap={localMap} isAdmin={isAdmin} ov={ov} patchOv={patchOv} />}
+        {tab === 'dash'       && <Dashboard user={user} api={api} goto={setTab} isAdmin={isAdmin} ov={ov} />}
+        {tab === 'events'     && <Events user={user} isAdmin={isAdmin} api={api} />}
+        {tab === 'schedule'   && <Schedule isAdmin={isAdmin} ov={ov} patchOv={patchOv} publish={publish} />}
+        {tab === 'rosters'    && <Rosters api={api} isAdmin={isAdmin} ov={ov} patchOv={patchOv} publish={publish} />}
         {tab === 'paints'     && <Paints />}
-        {tab === 'driverinfo' && isAdmin && <DriverInfo ov={ov} patchOv={patchOv} />}
+        {tab === 'driverinfo' && isAdmin && <DriverInfo ov={ov} patchOv={patchOv} publish={publish} />}
       </main>
       <footer className="pt-foot mono">
-        ECLIPSE COMPETITION · TEAM PORTAL · IN DEVELOPMENT — DATA MAY LAG THE DISCORD
+        ECLIPSE COMPETITION · TEAM PORTAL · {LIVE ? 'LIVE' : 'IN DEVELOPMENT — DATA MAY LAG THE DISCORD'}
       </footer>
     </div>
   );
 }
 
 function PortalApp() {
-  const [user, setUser] = useState(() => auth.current());
-  if (!user) return <Login onAuthed={setUser} />;
-  return <Portal user={user} onLogout={() => { auth.logout(); setUser(null); }} />;
+  const [user, setUser] = useState(() => (LIVE ? null : localAuth.current()));
+  const [booting, setBooting] = useState(LIVE);
+  const [gateErr, setGateErr] = useState('');
+
+  useEffect(() => {
+    if (!LIVE) return;
+    const handle = async (session) => {
+      if (!session) { setUser(null); return; }
+      const ok = await checkGuild(session);
+      if (!ok) {
+        setGateErr("That Discord account isn't in the Eclipse server. Join the Discord first, then log in again.");
+        await sb.auth.signOut();
+        setUser(null);
+        return;
+      }
+      setGateErr('');
+      setUser(mapSession(session));
+    };
+    sb.auth.getSession().then(async ({ data }) => {
+      await handle(data.session);
+      setBooting(false);
+    });
+    const { data: sub } = sb.auth.onAuthStateChange((_event, session) => { handle(session); });
+    return () => sub.subscription.unsubscribe();
+  }, []);
+
+  if (booting) {
+    return (
+      <div className="pt-login">
+        <div className="pt-login-card">
+          <img src="assets/logo-white.png" alt="Eclipse Competition" className="pt-login-logo" />
+          <div className="pt-login-eyebrow">/ CONNECTING…</div>
+        </div>
+      </div>
+    );
+  }
+  if (!user) return <Login onAuthed={setUser} gateErr={gateErr} />;
+  return (
+    <Portal user={user} onLogout={async () => {
+      if (LIVE) await sb.auth.signOut(); else localAuth.logout();
+      setUser(null);
+    }} />
+  );
 }
 
 class ErrorBoundary extends React.Component {
