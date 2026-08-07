@@ -128,7 +128,7 @@ language plpgsql security definer set search_path = public, private, net as $$
 declare url text;
 begin
   select value into url from private.config where key = 'discord_webhook';
-  if url is not null and url <> '' and url <> 'PASTE_WEBHOOK_URL_HERE' then
+  if url is not null and url <> '' and url <> 'https://discord.com/api/webhooks/1535121496421310514/LmBGIuchLd8Ds258xXvrQkAtV2PGgA4ryKIX9nviIhJN-1s2-ELgA_M18Gwm8qaW-DVb' then
     perform net.http_post(
       url := url,
       body := jsonb_build_object('content', '📋 Event lineups were just updated — check the portal.'),
