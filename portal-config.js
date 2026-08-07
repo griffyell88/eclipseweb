@@ -10,13 +10,11 @@
 // what actually protect the data.
 window.EC_CONFIG = {
   // Supabase Dashboard → Project Settings → Data API → "Project URL"
-  SUPABASE_URL: "",
+  SUPABASE_URL: "https://uxiwpsfvmupvwhcmgdqt.supabase.co",
 
   // Supabase Dashboard → Project Settings → API Keys → publishable ("anon") key
-  SUPABASE_ANON_KEY: "",
+  SUPABASE_ANON_KEY: "sb_publishable_PYdy8V8DxcV0fuyNk2bJHA_IuoyHkS6",
 
-  // Eclipse Discord server ID (right-click server icon → Copy Server ID,
-  // with Developer Mode on). Only members of this server can enter.
-  // Leave blank to let any Discord account in (not recommended).
-  DISCORD_GUILD_ID: "",
+  // Eclipse Discord server ID — only members of this server can enter.
+  DISCORD_GUILD_ID: "1173093600549163018",
 };
