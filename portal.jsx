@@ -34,7 +34,7 @@ const localAuth = {
     if (!raw) return null;
     try {
       const s = JSON.parse(raw);
-      return P.auth.users.find(u => u.user === s.user) || null;
+      return (P.auth.users || []).find(u => u.user === s.user) || null;
     } catch (e) { return null; }
   },
   async login(user, pass) {
@@ -42,7 +42,7 @@ const localAuth = {
       throw new Error('Secure crypto unavailable — open the portal over https or localhost.');
     }
     const hash = await sha256(`${user.trim().toLowerCase()}:${pass}`);
-    const match = P.auth.users.find(u => u.user === user.trim().toLowerCase() && u.hash === hash);
+    const match = (P.auth.users || []).find(u => u.user === user.trim().toLowerCase() && u.hash === hash);
     if (!match) throw new Error('Wrong username or password.');
     store.set(SESSION_KEY, JSON.stringify({ user: match.user }));
     return match;
@@ -175,6 +175,14 @@ function Login({ onAuthed, gateErr }) {
             <div className="pt-login-foot">
               Uses your Discord account — members of the Eclipse server only.<br/>
               Not a member? <a href={(window.EC_DATA && window.EC_DATA.brand.discord) || 'https://discord.gg/CBtQMmcksE'}>Join the Discord</a>
+            </div>
+          </>
+        ) : (CFG.SUPABASE_URL && CFG.SUPABASE_ANON_KEY) ? (
+          // Keys are set but the Supabase library didn't load (CDN hiccup).
+          // Passwords no longer exist, so there's nothing to fall back to.
+          <>
+            <div className="pt-login-err">
+              Couldn't load the login system — check your connection and refresh.
             </div>
           </>
         ) : (
@@ -729,7 +737,7 @@ function DriverInfo({ ov, patchOv, publish }) {
       <div className="pt-panel-head">
         <h2 className="pt-h2">Driver Info</h2>
         <div className="pt-sched-controls">
-          {(ov.driverDB || LIVE) && <ExportBtn data={db} label="Export JSON" />}
+          {ov.driverDB && !LIVE && <ExportBtn data={db} label="Export JSON" />}
           {ov.driverDB && !editing && !LIVE && (
             <button className="pt-mini-btn pt-mini-btn--warn" onClick={() => {
               if (window.confirm('Discard local driver DB edits and go back to what portal-data.js says?')) patchOv({ driverDB: undefined });
