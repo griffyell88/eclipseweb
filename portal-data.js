@@ -27,6 +27,9 @@ window.EC_PORTAL = {
   // mode: "self"  → drivers sign themselves up (state: confirmed)
   //       "admin" → drivers mark availability, admins build the lineup (state: available)
   // Either mode also offers a Tentative option. No seat caps.
+  // DATES: `date` is the display label; `end` (YYYY-MM-DD) drives automation —
+  // the day after `end`, the event drops out of signups/rosters/dashboard on
+  // its own. Leave `end` off to keep an event up forever.
   // Entries added in the UI persist per-browser (localStorage) until the backend
   // lands — entries listed HERE are the shared source of truth.
   events: [
@@ -35,6 +38,7 @@ window.EC_PORTAL = {
       title: "Suzuka 1000km",
       track: "Suzuka Circuit",
       date: "SEP 10–15",
+      end: "2026-09-15",
       series: "Special Event · Team Event",
       classes: ["GT3"],
       mode: "admin",
@@ -46,6 +50,7 @@ window.EC_PORTAL = {
       title: "Petit Le Mans",
       track: "Michelin Raceway Road Atlanta",
       date: "SEP 25–27",
+      end: "2026-09-27",
       series: "Special Event · Team Event",
       classes: ["GTP", "LMP2", "GT3"],
       mode: "admin",
@@ -58,6 +63,7 @@ window.EC_PORTAL = {
       title: "8 Hours of Indianapolis",
       track: "Indianapolis Motor Speedway",
       date: "OCT 16–18",
+      end: "2026-10-18",
       series: "Special Event · Team Event",
       classes: ["GT3"],
       mode: "self",
@@ -69,6 +75,7 @@ window.EC_PORTAL = {
       title: "SFL Mountain Showdown",
       track: "Mount Panorama Circuit",
       date: "NOV 13–15",
+      end: "2026-11-15",
       series: "Special Event",
       classes: ["Super Formula Light"],
       mode: "self",
@@ -78,19 +85,22 @@ window.EC_PORTAL = {
   ],
 
   // ── SERIES SCHEDULES ──────────────────────────────────────────────────────
+  // `iso` (YYYY-MM-DD, the round's last day) drives automation: past rounds
+  // auto-hide behind the "show past" toggle and the next round gets flagged
+  // UP NEXT. Rounds without `iso` (TBDs) always show.
   schedules: [
     {
       series: "FIS — Formula Indy Series",
       cadence: "Season 9 · Wednesdays · P 7:30 / Q 8:20 / R 8:30 PM ET",
       rounds: [
-        { r: 5,  date: "AUG 12", track: "Talladega — 94 laps" },
-        { r: 6,  date: "AUG 19", track: "Miami Autodrome — 37 laps" },
-        { r: 7,  date: "AUG 26", track: "Belle Isle — 54 laps" },
-        { r: 8,  date: "SEP 2",  track: "Milwaukee — 150 laps" },
-        { r: 9,  date: "SEP 16", track: "Fuji — 44 laps" },
-        { r: 10, date: "SEP 23", track: "Richmond Duels — 100 laps ×2" },
-        { r: 11, date: "SEP 30", track: "Mid-Ohio — 56 laps" },
-        { r: 12, date: "OCT 7",  track: "Road America — 31 laps" },
+        { r: 5,  date: "AUG 12", iso: "2026-08-12", track: "Talladega — 94 laps" },
+        { r: 6,  date: "AUG 19", iso: "2026-08-19", track: "Miami Autodrome — 37 laps" },
+        { r: 7,  date: "AUG 26", iso: "2026-08-26", track: "Belle Isle — 54 laps" },
+        { r: 8,  date: "SEP 2",  iso: "2026-09-02", track: "Milwaukee — 150 laps" },
+        { r: 9,  date: "SEP 16", iso: "2026-09-16", track: "Fuji — 44 laps" },
+        { r: 10, date: "SEP 23", iso: "2026-09-23", track: "Richmond Duels — 100 laps ×2" },
+        { r: 11, date: "SEP 30", iso: "2026-09-30", track: "Mid-Ohio — 56 laps" },
+        { r: 12, date: "OCT 7",  iso: "2026-10-07", track: "Road America — 31 laps" },
       ],
     },
     {
@@ -106,10 +116,10 @@ window.EC_PORTAL = {
       series: "Special Events",
       cadence: "2026 · Team Events",
       rounds: [
-        { r: 1, date: "SEP 10–15", track: "Suzuka 1000km — GT3" },
-        { r: 2, date: "SEP 25–27", track: "Petit Le Mans — GTP · LMP2 · GT3" },
-        { r: 3, date: "OCT 16–18", track: "8 Hours of Indianapolis — GT3" },
-        { r: 4, date: "NOV 13–15", track: "SFL Mountain Showdown — Super Formula Light" },
+        { r: 1, date: "SEP 10–15", iso: "2026-09-15", track: "Suzuka 1000km — GT3" },
+        { r: 2, date: "SEP 25–27", iso: "2026-09-27", track: "Petit Le Mans — GTP · LMP2 · GT3" },
+        { r: 3, date: "OCT 16–18", iso: "2026-10-18", track: "8 Hours of Indianapolis — GT3" },
+        { r: 4, date: "NOV 13–15", iso: "2026-11-15", track: "SFL Mountain Showdown — Super Formula Light" },
       ],
     },
   ],

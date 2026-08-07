@@ -58,6 +58,22 @@ function allEntries(ev, localMap) { return [...ev.entries, ...(localMap[ev.id] |
 
 const STATE_LABEL = { confirmed: 'CONFIRMED', available: 'AVAILABLE', tentative: 'TENTATIVE', reserve: 'RESERVE' };
 
+// ── Date automation ──────────────────────────────────────────────────────────
+// A round/event is "past" starting the day AFTER its end date, so race day
+// itself still shows as upcoming (same rule as the public site's calendar).
+// Dates parse as local time (append T00:00 to avoid the UTC-shift footgun).
+function isPast(iso) {
+  if (!iso) return false;
+  const end = new Date(iso + 'T23:59:59');
+  return new Date() > end;
+}
+// Events sorted by end date (undated events sink to the bottom, always live).
+function liveEvents() {
+  return P.events
+    .filter(ev => !isPast(ev.end))
+    .sort((a, b) => (a.end || '9999').localeCompare(b.end || '9999'));
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 function Login({ onAuthed }) {
   const [user, setUser] = useState('');
@@ -109,7 +125,7 @@ function Login({ onAuthed }) {
 
 // ─────────────────────────────────────────────────────────────────────────────
 function Dashboard({ user, localMap, goto, isAdmin }) {
-  const open = P.events.filter(e => e.status === 'open');
+  const open = liveEvents().filter(e => e.status === 'open');
   const next = open[0];
   const nextEntries = next ? allEntries(next, localMap) : [];
   return (
@@ -262,10 +278,13 @@ function Events({ user, isAdmin, localMap, setLocalMap }) {
         <div className="pt-tag mono">REPLACES #race-check-in</div>
       </div>
       <div className="pt-events">
-        {P.events.map(ev => (
+        {liveEvents().map(ev => (
           <EventCard key={ev.id} ev={ev} user={user} localMap={localMap}
                      setLocalMap={setLocalMap} isAdmin={isAdmin} />
         ))}
+        {liveEvents().length === 0 && (
+          <div className="pt-empty">No upcoming events — new ones appear here when they're added to portal-data.js.</div>
+        )}
       </div>
     </div>
   );
@@ -273,29 +292,49 @@ function Events({ user, isAdmin, localMap, setLocalMap }) {
 
 // ─────────────────────────────────────────────────────────────────────────────
 function Schedule() {
+  const [showPast, setShowPast] = useState(false);
   return (
     <div className="pt-panel">
       <div className="pt-panel-head">
         <h2 className="pt-h2">Schedules</h2>
-        <div className="pt-tag mono">REPLACES #schedules</div>
-      </div>
-      {P.schedules.map((s, i) => (
-        <div className="pt-sched" key={i}>
-          <div className="pt-sched-head">
-            <span className="pt-sched-series">{s.series}</span>
-            <span className="pt-sched-cad mono">{s.cadence}</span>
-          </div>
-          <div className="pt-sched-rounds">
-            {s.rounds.map((r, j) => (
-              <div className="pt-round" key={j}>
-                <span className="pt-round-n mono">{r.r ? `R${r.r}` : '—'}</span>
-                <span className="pt-round-date mono">{r.date}</span>
-                <span className="pt-round-track">{r.track}</span>
-              </div>
-            ))}
-          </div>
+        <div className="pt-sched-controls">
+          <button className="pt-subtab" data-active={showPast} onClick={() => setShowPast(!showPast)}>
+            {showPast ? 'Hide past rounds' : 'Show past rounds'}
+          </button>
         </div>
-      ))}
+      </div>
+      {P.schedules.map((s, i) => {
+        const upcoming = s.rounds.filter(r => !isPast(r.iso));
+        const nextIso = upcoming.find(r => r.iso)?.iso;
+        const rounds = showPast ? s.rounds : upcoming;
+        return (
+          <div className="pt-sched" key={i}>
+            <div className="pt-sched-head">
+              <span className="pt-sched-series">{s.series}</span>
+              <span className="pt-sched-cad mono">{s.cadence}</span>
+            </div>
+            <div className="pt-sched-rounds">
+              {rounds.map((r, j) => {
+                const past = isPast(r.iso);
+                const next = r.iso && r.iso === nextIso;
+                return (
+                  <div className="pt-round" key={j} data-past={past}>
+                    <span className="pt-round-n mono">{r.r ? `R${r.r}` : '—'}</span>
+                    <span className="pt-round-date mono">{r.date}</span>
+                    <span className="pt-round-track">
+                      {r.track}
+                      {next && <em className="pt-upnext mono">UP NEXT</em>}
+                    </span>
+                  </div>
+                );
+              })}
+              {rounds.length === 0 && (
+                <div className="pt-empty">Season complete — flip “Show past rounds” to see how it went.</div>
+              )}
+            </div>
+          </div>
+        );
+      })}
     </div>
   );
 }
@@ -304,7 +343,7 @@ function Schedule() {
 // Rosters: auto-built from event signups (one block per open event, grouped by
 // class), plus the static FIS roster from the spotter guide.
 function Rosters({ localMap }) {
-  const openEvents = P.events.filter(e => e.status === 'open');
+  const openEvents = liveEvents().filter(e => e.status === 'open');
   return (
     <div className="pt-panel">
       <div className="pt-panel-head">
