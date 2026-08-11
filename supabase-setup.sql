@@ -44,7 +44,8 @@ create table if not exists signups (
   discord_username text not null default '',
   user_id uuid not null default auth.uid(),
   created_at timestamptz not null default now(),
-  unique (event_id, user_id)
+  -- one entry per CLASS per event — drivers can hold spots in multiple classes
+  unique (event_id, user_id, cls)
 );
 alter table signups enable row level security;
 drop policy if exists "read signups" on signups;
@@ -109,7 +110,8 @@ begin
     msg := '🏁 **' || new.driver_name || '** is ' || upper(new.state) ||
            ' for **' || new.event_title || '** (' || new.cls || ')';
   else
-    msg := '↩️ **' || old.driver_name || '** withdrew from **' || old.event_title || '**';
+    msg := '↩️ **' || old.driver_name || '** withdrew from **' || old.event_title ||
+           '** (' || old.cls || ')';
   end if;
   perform net.http_post(
     url := url,
@@ -123,24 +125,33 @@ drop trigger if exists signups_notify on signups;
 create trigger signups_notify after insert or delete on signups
   for each row execute function notify_signup();
 
-create or replace function notify_lineups() returns trigger
+create or replace function notify_docs() returns trigger
 language plpgsql security definer set search_path = public, private, net as $$
-declare url text;
+declare url text; msg text;
 begin
   select value into url from private.config where key = 'discord_webhook';
-  if url is not null and url <> '' and url <> 'https://discord.com/api/webhooks/1535121496421310514/LmBGIuchLd8Ds258xXvrQkAtV2PGgA4ryKIX9nviIhJN-1s2-ELgA_M18Gwm8qaW-DVb' then
-    perform net.http_post(
-      url := url,
-      body := jsonb_build_object('content', '📋 Event lineups were just updated — check the portal.'),
-      headers := '{"Content-Type": "application/json"}'::jsonb
-    );
+  if url is null or url = '' or url = 'PASTE_WEBHOOK_URL_HERE' then
+    return new;
   end if;
+  if new.key = 'lineups' then
+    msg := '📋 Event lineups were just updated — check the portal.';
+  elsif new.key = 'events' then
+    msg := '📅 The events list was just updated — check the portal for signups.';
+  else
+    return new;
+  end if;
+  perform net.http_post(
+    url := url,
+    body := jsonb_build_object('content', msg),
+    headers := '{"Content-Type": "application/json"}'::jsonb
+  );
   return new;
 end $$;
 
 drop trigger if exists lineups_notify on portal_docs;
-create trigger lineups_notify after update on portal_docs
-  for each row when (new.key = 'lineups') execute function notify_lineups();
+drop trigger if exists docs_notify on portal_docs;
+create trigger docs_notify after insert or update on portal_docs
+  for each row when (new.key in ('lineups', 'events')) execute function notify_docs();
 
 -- Done. If this ran without errors you should see 3 rows:
 select key, updated_at from portal_docs order by key;

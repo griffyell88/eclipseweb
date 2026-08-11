@@ -420,6 +420,55 @@
 .pt-db-notes { color: var(--ec-mute); font-size: 11px; }
 @media (max-width: 900px) { .pt-dash-grid--tiles { grid-template-columns: 1fr 1fr; } }
 
+/* ============ ORDERING ARROWS ============ */
+.pt-arrow {
+  padding: 4px 9px; font-size: 12px; line-height: 1;
+}
+.pt-arrow:disabled { opacity: 0.25; cursor: default; }
+.pt-arrow:disabled:hover { border-color: var(--ec-line); color: var(--ec-light-2); }
+
+/* ============ EVENT EDITOR (admin) ============ */
+.pt-event--edit { border-left: 3px solid var(--ec-amber); }
+.pt-ev-edit-top {
+  display: flex; justify-content: space-between; align-items: center;
+  margin-bottom: 14px;
+}
+.pt-ev-edit-n { color: var(--ec-mute-dark); font-size: 11px; letter-spacing: 0.15em; }
+.pt-ev-edit-ctl { display: flex; gap: 6px; align-items: center; }
+.pt-ev-edit-grid {
+  display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px;
+}
+.pt-efield { display: flex; flex-direction: column; gap: 5px; min-width: 0; }
+.pt-efield > span {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 9px; letter-spacing: 0.15em; color: var(--ec-mute-dark);
+}
+.pt-efield--wide { grid-column: span 2; }
+.pt-efield--check { justify-content: flex-start; }
+.pt-efield--check input { width: 18px; height: 18px; accent-color: var(--ec-accent); margin-top: 6px; }
+.pt-efield select.pt-input { appearance: auto; cursor: pointer; }
+@media (max-width: 900px) { .pt-ev-edit-grid { grid-template-columns: 1fr 1fr; } }
+
+/* ============ MULTI-CLASS SIGNUP (your entries) ============ */
+.pt-mine { display: flex; flex-direction: column; gap: 8px; width: 100%; }
+.pt-mine-row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+
+/* ============ iRACING LICENSE BADGES ============ */
+/* Color-coded to iRacing's license classes:
+   R rookie=red · D=orange · C=yellow · B=green · A=blue · P pro=black */
+.pt-lic {
+  display: inline-block;
+  font-size: 10px; font-weight: 600; letter-spacing: 0.06em;
+  padding: 2px 7px; border-radius: 2px; white-space: nowrap;
+}
+.pt-lic[data-lic="R"] { background: #d33a3a; color: #fff; }
+.pt-lic[data-lic="D"] { background: #ee7d23; color: #101012; }
+.pt-lic[data-lic="C"] { background: #f4c73f; color: #101012; }
+.pt-lic[data-lic="B"] { background: #3aa74a; color: #fff; }
+.pt-lic[data-lic="A"] { background: #2f6ed6; color: #fff; }
+.pt-lic[data-lic="P"] { background: #0a0a0c; color: #fff; border: 1px solid #6a6a72; }
+.pt-lic[data-lic="W"] { background: #0a0a0c; color: #fff; border: 1px solid var(--ec-accent); }
+
 /* ============ SETUPS (unused, kept for phase 2) ============ */
 .pt-search {
   background: var(--ec-bg-2); border: 1px solid var(--ec-line);

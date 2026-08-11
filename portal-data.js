@@ -24,13 +24,18 @@ window.EC_PORTAL = {
   // ── TEAM TOOLS ─────────────────────────────────────────────────────────────
   tools: [
     { name: "iRacePlan", url: "https://iraceplan.com/",    note: "Race & stint planning" },
-    { name: "Garage 61", url: "https://garage61.net/app",  note: "Telemetry & lap data" },
+    { name: "Garage 61", url: "https://garage61.net/app/teams/rising-eclipse-competition", note: "Telemetry & lap data" },
   ],
 
   // ── EVENTS & SIGNUPS ───────────────────────────────────────────────────────
+  // LIVE MODE: this list is just the FALLBACK — admins add/edit/remove/reorder
+  // events in the portal UI (Events & Signups → Edit events) and publish via
+  // Supabase (portal_docs → events). Once published, the portal ignores this
+  // block entirely. Keep it as a seed/backup only.
   // mode: "self"  → drivers sign themselves up (state: confirmed)
   //       "admin" → drivers mark availability, admins build the lineup (state: available)
-  // Either mode also offers a Tentative option. No seat caps.
+  // Either mode also offers a Tentative option — drivers can now hold spots in
+  // MULTIPLE classes per event (one entry per class). No seat caps.
   // DATES: `date` is the display label; `end` (YYYY-MM-DD) drives automation —
   // the day after `end`, the event drops out of signups/rosters/dashboard on
   // its own. Leave `end` off to keep an event up forever.

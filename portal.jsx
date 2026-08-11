@@ -109,11 +109,19 @@ function isPast(iso) {
   const end = new Date(iso + 'T23:59:59');
   return new Date() > end;
 }
-function liveEvents() {
-  return P.events
-    .filter(ev => !isPast(ev.end))
-    .sort((a, b) => (a.end || '9999').localeCompare(b.end || '9999'));
+// Events resolve from the admin-published override (portal_docs → events) when
+// present, else the baked-in list. ARRAY ORDER IS DISPLAY ORDER — admins keep
+// it chronological (auto-placement on date entry) or reorder manually.
+function allEvents(ov) {
+  return (ov && ov.events) || P.events;
 }
+function liveEvents(ov) {
+  return allEvents(ov).filter(ev => !isPast(ev.end));
+}
+function soonest(evs) {
+  return [...evs].sort((a, b) => (a.end || '9999').localeCompare(b.end || '9999'))[0];
+}
+const ISO_RE = /^\d{4}-\d{2}-\d{2}$/;
 
 function copyText(text) {
   if (navigator.clipboard && navigator.clipboard.writeText) return navigator.clipboard.writeText(text);
@@ -221,8 +229,8 @@ function Login({ onAuthed, gateErr }) {
 
 // ─────────────────────────────────────────────────────────────────────────────
 function Dashboard({ user, api, goto, isAdmin, ov }) {
-  const open = liveEvents().filter(e => e.status === 'open');
-  const next = open[0];
+  const open = liveEvents(ov).filter(e => e.status === 'open');
+  const next = soonest(open);
   const nextEntries = next ? api.entriesFor(next) : [];
   const db = ov.driverDB || P.driverDB || [];
   return (
@@ -302,7 +310,9 @@ function Dashboard({ user, api, goto, isAdmin, ov }) {
 // ─────────────────────────────────────────────────────────────────────────────
 function EventCard({ ev, user, api, isAdmin }) {
   const entries = api.entriesFor(ev);
-  const mine = api.mineFor(ev);
+  const mine = api.mineAll(ev);
+  const myCls = new Set(mine.map(en => en.cls));
+  const openCls = ev.classes.filter(c => !myCls.has(c));
   const locked = ev.status !== 'open';
   const firmState = ev.mode === 'admin' ? 'available' : 'confirmed';
 
@@ -344,26 +354,34 @@ function EventCard({ ev, user, api, isAdmin }) {
       )}
 
       <div className="pt-ev-actions">
-        {mine ? (
-          api.canRemove(ev, mine)
-            ? <>
-                <span className="pt-ev-in mono" data-state={mine.state}>
-                  // YOU'RE IN — {mine.cls} · {STATE_LABEL[mine.state]}
+        {mine.length > 0 && (
+          <div className="pt-mine">
+            {mine.map((en, i) => (
+              <div className="pt-mine-row" key={i}>
+                <span className="pt-ev-in mono" data-state={en.state}>
+                  // YOU'RE IN — {en.cls} · {STATE_LABEL[en.state] || en.state.toUpperCase()}
                 </span>
-                <button className="btn pt-btn-sm" onClick={() => api.leave(ev)}>Withdraw</button>
-              </>
-            : <span className="pt-ev-in mono">// YOU'RE ON THE ENTRY LIST</span>
-        ) : !locked && (
+                {api.canRemove(ev, en) && (
+                  <button className="btn pt-btn-sm" onClick={() => api.leave(ev, en)}>Withdraw</button>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+        {!locked && openCls.length > 0 && (
           <div className="pt-signup-rows">
+            {mine.length > 0 && (
+              <div className="pt-ev-mode mono">// ADD ANOTHER CLASS</div>
+            )}
             <div className="pt-signup-row">
-              {ev.classes.map(cls => (
+              {openCls.map(cls => (
                 <button key={cls} className="btn btn-primary pt-btn-sm" onClick={() => api.join(ev, cls, firmState)}>
                   {ev.mode === 'admin' ? `Available — ${cls}` : `Sign up — ${cls}`}
                 </button>
               ))}
             </div>
             <div className="pt-signup-row">
-              {ev.classes.map(cls => (
+              {openCls.map(cls => (
                 <button key={cls} className="btn pt-btn-sm pt-btn-tent" onClick={() => api.join(ev, cls, 'tentative')}>
                   Tentative — {cls}
                 </button>
@@ -376,20 +394,145 @@ function EventCard({ ev, user, api, isAdmin }) {
   );
 }
 
-function Events({ user, isAdmin, api }) {
-  const evs = liveEvents();
+// ── Admin event editor ───────────────────────────────────────────────────────
+// Events publish through portal_docs ('events') exactly like schedules, so
+// adding/editing/removing an event needs no redeploy. New events auto-place
+// chronologically once their end date is typed (on blur); arrows override.
+function EventEditCard({ ev, i, count, ops }) {
+  return (
+    <div className="pt-event pt-event--edit">
+      <div className="pt-ev-edit-top">
+        <span className="pt-ev-edit-n mono">{String(i + 1).padStart(2, '0')}</span>
+        <div className="pt-ev-edit-ctl">
+          <button className="pt-mini-btn pt-arrow" title="Move up" disabled={i === 0} onClick={() => ops.move(i, -1)}>↑</button>
+          <button className="pt-mini-btn pt-arrow" title="Move down" disabled={i === count - 1} onClick={() => ops.move(i, 1)}>↓</button>
+          <button className="pt-en-x" title="Delete event" onClick={() => ops.del(i)}>×</button>
+        </div>
+      </div>
+      <div className="pt-ev-edit-grid">
+        <label className="pt-efield pt-efield--wide"><span>TITLE</span>
+          <input className="pt-input" value={ev.title} placeholder="Suzuka 1000km"
+                 onChange={e => ops.set(i, 'title', e.target.value)} /></label>
+        <label className="pt-efield pt-efield--wide"><span>TRACK</span>
+          <input className="pt-input" value={ev.track} placeholder="Suzuka Circuit"
+                 onChange={e => ops.set(i, 'track', e.target.value)} /></label>
+        <label className="pt-efield"><span>DATE LABEL</span>
+          <input className="pt-input mono" value={ev.date} placeholder="SEP 10–15"
+                 onChange={e => ops.set(i, 'date', e.target.value)} /></label>
+        <label className="pt-efield"><span>END (YYYY-MM-DD)</span>
+          <input className="pt-input mono" value={ev.end || ''} placeholder="2026-09-15"
+                 onChange={e => ops.set(i, 'end', e.target.value)}
+                 onBlur={() => ops.place(i)} /></label>
+        <label className="pt-efield pt-efield--wide"><span>SERIES LABEL</span>
+          <input className="pt-input" value={ev.series} placeholder="Special Event · Team Event"
+                 onChange={e => ops.set(i, 'series', e.target.value)} /></label>
+        <label className="pt-efield"><span>CLASSES (COMMA-SEPARATED)</span>
+          <input className="pt-input mono" defaultValue={(ev.classes || []).join(', ')} placeholder="GTP, LMP2, GT3"
+                 onBlur={e => ops.set(i, 'classes', e.target.value.split(',').map(s => s.trim()).filter(Boolean))} /></label>
+        <label className="pt-efield"><span>SIGNUP MODE</span>
+          <select className="pt-input" value={ev.mode} onChange={e => ops.set(i, 'mode', e.target.value)}>
+            <option value="self">Self-signup (drivers claim spots)</option>
+            <option value="admin">Availability (admins pick lineup)</option>
+          </select></label>
+        <label className="pt-efield"><span>SIGNUPS</span>
+          <select className="pt-input" value={ev.status} onChange={e => ops.set(i, 'status', e.target.value)}>
+            <option value="open">Open</option>
+            <option value="locked">Locked</option>
+          </select></label>
+        <label className="pt-efield pt-efield--check"><span>FEATURED</span>
+          <input type="checkbox" checked={!!ev.featured} onChange={e => ops.set(i, 'featured', e.target.checked)} /></label>
+      </div>
+      {isPast(ev.end) && <div className="pt-ev-mode mono">// PAST EVENT — hidden from drivers, kept here for your records</div>}
+    </div>
+  );
+}
+
+function Events({ user, isAdmin, api, ov, patchOv, publish }) {
+  const [editing, setEditing] = useState(false);
+  const all = allEvents(ov);
+  const evs = liveEvents(ov);
+  const hasOverride = !!ov.events;
+
+  const mutate = (fn) => {
+    const next = JSON.parse(JSON.stringify(all));
+    fn(next);
+    patchOv({ events: next });
+  };
+  const ops = {
+    set: (i, field, val) => mutate(es => { es[i][field] = val; }),
+    move: (i, dir) => mutate(es => {
+      const j = i + dir;
+      if (j < 0 || j >= es.length) return;
+      [es[i], es[j]] = [es[j], es[i]];
+    }),
+    del: (i) => {
+      if (window.confirm(`Delete "${all[i].title || 'this event'}"? Its signups disappear from the portal with it.`)) {
+        mutate(es => es.splice(i, 1));
+      }
+    },
+    // Chronological auto-placement: once a valid end date is set, the event
+    // slides to its date-ordered slot. Arrows still let you override after.
+    place: (i) => mutate(es => {
+      const ev = es[i];
+      if (!ISO_RE.test(ev.end || '')) return;
+      es.splice(i, 1);
+      let k = es.findIndex(x => x.end && x.end > ev.end);
+      if (k === -1) k = es.length;
+      es.splice(k, 0, ev);
+    }),
+  };
+  const addEvent = () => mutate(es => es.push({
+    id: 'ev-' + Math.random().toString(36).slice(2, 10),
+    title: '', track: '', date: '', end: '',
+    series: 'Special Event · Team Event',
+    classes: ['GT3'], mode: 'admin', status: 'open', entries: [],
+  }));
+  const sortByDate = () => mutate(es => es.sort((a, b) => (a.end || '9999').localeCompare(b.end || '9999')));
+  const doneEditing = () => { setEditing(false); publish('events'); };
+
   return (
     <div className="pt-panel">
       <div className="pt-panel-head">
         <h2 className="pt-h2">Events &amp; Signups</h2>
-        <div className="pt-tag mono">REPLACES #race-check-in</div>
+        <div className="pt-sched-controls">
+          {isAdmin && (
+            <>
+              {hasOverride && !LIVE && <ExportBtn data={all} label="Export JSON" />}
+              {hasOverride && !editing && !LIVE && (
+                <button className="pt-mini-btn pt-mini-btn--warn" onClick={() => {
+                  if (window.confirm('Discard local event edits and go back to what portal-data.js says?')) patchOv({ events: undefined });
+                }}>Reset to file</button>
+              )}
+              {editing && <button className="pt-mini-btn" onClick={addEvent}>+ Add event</button>}
+              {editing && <button className="pt-mini-btn" onClick={sortByDate}>Sort by date</button>}
+              <button className="pt-subtab" data-active={editing} onClick={() => editing ? doneEditing() : setEditing(true)}>
+                {editing ? (LIVE ? 'Done — publish' : 'Done editing') : 'Edit events'}
+              </button>
+            </>
+          )}
+          {!editing && <div className="pt-tag mono">REPLACES #race-check-in</div>}
+        </div>
       </div>
+
+      {editing && (
+        <div className="pt-note">
+          {LIVE
+            ? <>Events go live for the whole team when you hit <strong>Done — publish</strong> — no redeploy needed.</>
+            : <>Edits save in this browser only. <strong>Export JSON</strong> → paste over the <span className="mono">events</span> block in <span className="mono">portal-data.js</span> to publish.</>}
+          {' '}Type the <span className="mono">END</span> date and the event drops into chronological order on its own — arrows to override.
+        </div>
+      )}
+
       <div className="pt-events">
-        {evs.map(ev => (
-          <EventCard key={ev.id} ev={ev} user={user} api={api} isAdmin={isAdmin} />
-        ))}
-        {evs.length === 0 && (
-          <div className="pt-empty">No upcoming events — new ones appear here when they're added to portal-data.js.</div>
+        {editing
+          ? all.map((ev, i) => (
+              <EventEditCard key={ev.id} ev={ev} i={i} count={all.length} ops={ops} />
+            ))
+          : evs.map(ev => (
+              <EventCard key={ev.id} ev={ev} user={user} api={api} isAdmin={isAdmin} />
+            ))}
+        {!editing && evs.length === 0 && (
+          <div className="pt-empty">No upcoming events{isAdmin ? ' — hit Edit events to add one' : ' — check back after the admins add the next one'}.</div>
         )}
       </div>
     </div>
@@ -410,6 +553,21 @@ function Schedule({ isAdmin, ov, patchOv, publish }) {
   const setRound = (si, ri, field, val) => mutate(s => { s[si].rounds[ri][field] = field === 'r' ? (parseInt(val, 10) || 0) : val; });
   const addRound = (si) => mutate(s => s[si].rounds.push({ r: s[si].rounds.length + 1, date: '', iso: '', track: '' }));
   const delRound = (si, ri) => mutate(s => s[si].rounds.splice(ri, 1));
+  const moveRound = (si, ri, dir) => mutate(s => {
+    const arr = s[si].rounds, j = ri + dir;
+    if (j < 0 || j >= arr.length) return;
+    [arr[ri], arr[j]] = [arr[j], arr[ri]];
+  });
+  // Chronological auto-placement: when a round's iso date is entered (blur),
+  // it slides to its date-ordered slot. Arrows override afterwards if needed.
+  const placeRound = (si, ri) => mutate(s => {
+    const arr = s[si].rounds, r = arr[ri];
+    if (!ISO_RE.test(r.iso || '')) return;
+    arr.splice(ri, 1);
+    let k = arr.findIndex(x => x.iso && x.iso > r.iso);
+    if (k === -1) k = arr.length;
+    arr.splice(k, 0, r);
+  });
   const setSeries = (si, field, val) => mutate(s => { s[si][field] = val; });
   const hasOverride = !!ov.schedules;
   const doneEditing = () => { setEditing(false); publish('schedules'); };
@@ -444,7 +602,7 @@ function Schedule({ isAdmin, ov, patchOv, publish }) {
             ? <>Changes go live for the whole team when you hit <strong>Done — publish</strong>.</>
             : <>Edits save in this browser only. When the schedule's right, <strong>Export JSON</strong> and
                paste it over the <span className="mono">schedules</span> block in <span className="mono">portal-data.js</span>.</>}
-          {' '}Dates: <span className="mono">iso</span> = the round's last day, <span className="mono">YYYY-MM-DD</span> — it drives the auto-hiding.
+          {' '}Dates: <span className="mono">iso</span> = the round's last day, <span className="mono">YYYY-MM-DD</span> — it drives the auto-hiding, and entering it drops the round into chronological order (arrows to override).
         </div>
       )}
 
@@ -475,8 +633,10 @@ function Schedule({ isAdmin, ov, patchOv, publish }) {
                   <div className="pt-round pt-round--edit" key={ri}>
                     <input className="pt-input pt-input--xs mono" value={r.r || ''} onChange={e => setRound(si, ri, 'r', e.target.value)} placeholder="R#" />
                     <input className="pt-input pt-input--sm mono" value={r.date} onChange={e => setRound(si, ri, 'date', e.target.value)} placeholder="AUG 12" />
-                    <input className="pt-input pt-input--sm mono" value={r.iso || ''} onChange={e => setRound(si, ri, 'iso', e.target.value)} placeholder="2026-08-12" />
+                    <input className="pt-input pt-input--sm mono" value={r.iso || ''} onChange={e => setRound(si, ri, 'iso', e.target.value)} onBlur={() => placeRound(si, ri)} placeholder="2026-08-12" />
                     <input className="pt-input" value={r.track} onChange={e => setRound(si, ri, 'track', e.target.value)} placeholder="Track — laps" />
+                    <button className="pt-mini-btn pt-arrow" title="Move up" disabled={ri === 0} onClick={() => moveRound(si, ri, -1)}>↑</button>
+                    <button className="pt-mini-btn pt-arrow" title="Move down" disabled={ri === s.rounds.length - 1} onClick={() => moveRound(si, ri, 1)}>↓</button>
                     <button className="pt-en-x" title="Delete round" onClick={() => delRound(si, ri)}>×</button>
                   </div>
                 ) : (
@@ -507,7 +667,7 @@ function Schedule({ isAdmin, ov, patchOv, publish }) {
 // ─────────────────────────────────────────────────────────────────────────────
 function Rosters({ api, isAdmin, ov, patchOv, publish }) {
   const [editing, setEditing] = useState(false);
-  const openEvents = liveEvents().filter(e => e.status === 'open');
+  const openEvents = liveEvents(ov).filter(e => e.status === 'open');
   const lineups = ov.lineups || {};
   const getLineup = (ev) => lineups[ev.id] || ev.lineup || {};
   const setLineup = (ev, lu) => patchOv({ lineups: { ...lineups, [ev.id]: lu } });
@@ -699,6 +859,14 @@ const DB_COLS = [
 ];
 const EMPTY_DRIVER = Object.fromEntries(DB_COLS.map(c => [c.key, '']));
 
+// iRacing license badge — color-coded by class letter per iRacing's system:
+// R rookie red, D orange, C yellow, B green, A blue, P/pro black.
+function LicBadge({ v }) {
+  const s = String(v || '').trim();
+  if (!s) return <span className="mono">—</span>;
+  return <span className="pt-lic mono" data-lic={s[0].toUpperCase()}>{s}</span>;
+}
+
 function DriverInfo({ ov, patchOv, publish }) {
   const [sort, setSort] = useState({ key: null, dir: 1 });
   const [filters, setFilters] = useState({});
@@ -834,8 +1002,8 @@ function DriverInfo({ ov, patchOv, publish }) {
                 <span className="mono">{d.iracingId || '—'}</span>
                 <span className="mono">{d.scIr || '—'}</span>
                 <span className="mono">{d.fmIr || '—'}</span>
-                <span className="mono">{d.scLic || '—'}</span>
-                <span className="mono">{d.fmLic || '—'}</span>
+                <span><LicBadge v={d.scLic} /></span>
+                <span><LicBadge v={d.fmLic} /></span>
                 <span>{d.prefCars || '—'}</span>
                 <span className="mono">{d.region || '—'}</span>
                 <span className="mono">{d.joined || '—'}</span>
@@ -883,17 +1051,23 @@ function Portal({ user, onLogout }) {
       ...ev.entries,
       ...(remote[ev.id] || []).map(r => ({ driver: r.driver_name, cls: r.cls, state: r.state, _row: r })),
     ],
-    mineFor: (ev) => api.entriesFor(ev).find(en => en._row && en._row.user_id === user.id),
+    mineAll: (ev) => api.entriesFor(ev).filter(en => en._row && en._row.user_id === user.id),
     join: async (ev, cls, state) => {
       const { error } = await sb.from('signups').insert({
         event_id: ev.id, event_title: ev.title, cls, state,
         driver_name: user.name, discord_username: user.username,
       });
-      if (error) window.alert('Signup failed: ' + error.message);
+      if (error) {
+        window.alert(error.code === '23505'
+          ? `You're already signed up for ${cls} at this event.`
+          : 'Signup failed: ' + error.message);
+      }
       refreshSignups();
     },
-    leave: async (ev) => {
-      await sb.from('signups').delete().eq('event_id', ev.id).eq('user_id', user.id);
+    leave: async (ev, en) => {
+      // Per-entry withdrawal — you can be in multiple classes now.
+      if (en && en._row) await sb.from('signups').delete().eq('id', en._row.id);
+      else await sb.from('signups').delete().eq('event_id', ev.id).eq('user_id', user.id);
       refreshSignups();
     },
     remove: async (ev, en) => {
@@ -904,14 +1078,15 @@ function Portal({ user, onLogout }) {
     canRemove: (ev, en) => !!en._row,
   } : {
     entriesFor: (ev) => [...ev.entries, ...(localMap[ev.id] || [])],
-    mineFor: (ev) => api.entriesFor(ev).find(en => en.driver === user.name),
+    mineAll: (ev) => api.entriesFor(ev).filter(en => en.driver === user.name),
     join: (ev, cls, state) => {
       const locals = localMap[ev.id] || [];
+      if (locals.some(en => en.driver === user.name && en.cls === cls)) return;
       const next = { ...localMap, [ev.id]: [...locals, { driver: user.name, cls, state }] };
       setLocalMap(next); saveLocalSignups(next);
     },
-    leave: (ev) => {
-      const next = { ...localMap, [ev.id]: (localMap[ev.id] || []).filter(en => en.driver !== user.name) };
+    leave: (ev, en) => {
+      const next = { ...localMap, [ev.id]: (localMap[ev.id] || []).filter(x => x !== en) };
       setLocalMap(next); saveLocalSignups(next);
     },
     remove: (ev, en) => {
@@ -932,6 +1107,7 @@ function Portal({ user, onLogout }) {
         if (r.key === 'schedules') m.schedules = r.data;
         if (r.key === 'lineups') m.lineups = r.data;
         if (r.key === 'driver_db') m.driverDB = r.data;
+        if (r.key === 'events') m.events = r.data;
       }
       setOv(m);
     });
@@ -949,6 +1125,7 @@ function Portal({ user, onLogout }) {
     const dbKey = key === 'driverDB' ? 'driver_db' : key;
     const payload = key === 'schedules' ? ov.schedules
                   : key === 'lineups' ? (ov.lineups || {})
+                  : key === 'events' ? ov.events
                   : ov.driverDB;
     if (payload === undefined || payload === null) return;
     const { error } = await sb.from('portal_docs').upsert({
@@ -987,7 +1164,7 @@ function Portal({ user, onLogout }) {
       </header>
       <main className={"pt-main" + (tab === 'driverinfo' ? ' pt-main--wide' : '')}>
         {tab === 'dash'       && <Dashboard user={user} api={api} goto={setTab} isAdmin={isAdmin} ov={ov} />}
-        {tab === 'events'     && <Events user={user} isAdmin={isAdmin} api={api} />}
+        {tab === 'events'     && <Events user={user} isAdmin={isAdmin} api={api} ov={ov} patchOv={patchOv} publish={publish} />}
         {tab === 'schedule'   && <Schedule isAdmin={isAdmin} ov={ov} patchOv={patchOv} publish={publish} />}
         {tab === 'rosters'    && <Rosters api={api} isAdmin={isAdmin} ov={ov} patchOv={patchOv} publish={publish} />}
         {tab === 'paints'     && <Paints />}
