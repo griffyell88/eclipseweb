@@ -1,0 +1,44 @@
+# Eclipse Portal — weekly iRating / license sync
+# Pulls fresh SC/FM iRating + licenses from the iRacing Data API into the
+# portal's driver DB (Supabase). See scripts/sync-iratings.mjs for setup.
+#
+# INERT until these repo secrets exist (Settings → Secrets → Actions):
+#   IRACING_EMAIL · IRACING_PASSWORD · SUPABASE_URL · SUPABASE_SERVICE_ROLE_KEY
+
+name: Sync iRatings
+
+on:
+  schedule:
+    # Mondays 10:00 UTC = 6:00 AM ET — fresh numbers after race weekends
+    - cron: '0 10 * * 1'
+  workflow_dispatch: {}   # manual "Run workflow" button
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Skip if secrets not configured
+        id: gate
+        run: |
+          if [ -z "${{ secrets.IRACING_EMAIL }}" ] || [ -z "${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}" ]; then
+            echo "configured=false" >> "$GITHUB_OUTPUT"
+            echo "Secrets not set — skipping (this is fine until you enable the sync)."
+          else
+            echo "configured=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: actions/setup-node@v4
+        if: steps.gate.outputs.configured == 'true'
+        with:
+          node-version: '20'
+
+      - name: Sync
+        if: steps.gate.outputs.configured == 'true'
+        env:
+          IRACING_EMAIL: ${{ secrets.IRACING_EMAIL }}
+          IRACING_PASSWORD: ${{ secrets.IRACING_PASSWORD }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: node scripts/sync-iratings.mjs
