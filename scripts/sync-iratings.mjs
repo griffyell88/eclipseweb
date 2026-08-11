@@ -7,15 +7,25 @@
 // Runs from GitHub Actions weekly (.github/workflows/sync-iratings.yml) or
 // by hand:  node scripts/sync-iratings.mjs
 //
-// SETUP (one-time):
-//   1. iRacing account for the sync (your own works):
-//      iracing.com → Account → Security → enable "Legacy Read-Only
-//      Authentication". (Accounts using 2FA-only can't script logins.)
-//   2. Supabase Dashboard → Project Settings → API Keys → copy the
+// AUTH (updated Aug 2026): iRacing RETIRED legacy email/password logins in
+// the 2026 Season 1 release (Dec 9, 2025). Scripts now authenticate via
+// OAuth2 using the "password_limited" grant — which requires a client_id +
+// client_secret registered with iRacing (docs: oauth.iracing.com/oauth2/book).
+//
+// ⚠ As of Aug 2026 iRacing has PAUSED new OAuth client registrations while
+//   they review third-party API usage. This script is READY for the moment
+//   they reopen — request a client (audience "data-server", grant
+//   "password_limited", pre-register the sync account's username) via
+//   iRacing support, then fill in the secrets below. Watch the iRacing
+//   forums / release notes for registration reopening.
+//
+// SETUP (one-time, once you have OAuth client credentials):
+//   1. Supabase Dashboard → Project Settings → API Keys → copy the
 //      service_role (secret) key. NEVER put this in portal-config.js or any
 //      file that ships to browsers — it bypasses row-level security.
-//   3. GitHub repo → Settings → Secrets and variables → Actions → add:
+//   2. GitHub repo → Settings → Secrets and variables → Actions → add:
 //        IRACING_EMAIL, IRACING_PASSWORD,
+//        IRACING_CLIENT_ID, IRACING_CLIENT_SECRET,
 //        SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY
 //   Until the secrets exist, the workflow just skips — nothing breaks.
 //
@@ -27,52 +37,49 @@ import { createHash } from 'node:crypto';
 const {
   IRACING_EMAIL,
   IRACING_PASSWORD,
+  IRACING_CLIENT_ID,
+  IRACING_CLIENT_SECRET,
   SUPABASE_URL,
   SUPABASE_SERVICE_ROLE_KEY,
 } = process.env;
 
-for (const [k, v] of Object.entries({ IRACING_EMAIL, IRACING_PASSWORD, SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY })) {
+for (const [k, v] of Object.entries({ IRACING_EMAIL, IRACING_PASSWORD, IRACING_CLIENT_ID, IRACING_CLIENT_SECRET, SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY })) {
   if (!v) { console.error(`Missing env var: ${k}`); process.exit(1); }
 }
 
 const IR = 'https://members-ng.iracing.com';
-let cookies = '';
-
-function rememberCookies(res) {
-  const set = res.headers.getSetCookie ? res.headers.getSetCookie() : [];
-  if (set.length) {
-    const jar = new Map(cookies.split('; ').filter(Boolean).map(c => c.split('=', 2)));
-    for (const c of set) {
-      const [pair] = c.split(';');
-      const [k, v] = pair.split('=', 2);
-      jar.set(k, v);
-    }
-    cookies = [...jar.entries()].map(([k, v]) => `${k}=${v}`).join('; ');
-  }
-}
+let accessToken = '';
 
 async function irLogin() {
-  // iRacing legacy auth: password is base64(sha256(password + lowercased email))
-  const hash = createHash('sha256')
-    .update(IRACING_PASSWORD + IRACING_EMAIL.toLowerCase())
+  // OAuth2 password_limited grant (oauth.iracing.com/oauth2/book):
+  // POST form-encoded to /oauth2/token; the password must be "masked" —
+  // base64(sha256(password + lowercased email)) — before sending.
+  const masked = createHash('sha256')
+    .update(IRACING_PASSWORD + IRACING_EMAIL.trim().toLowerCase())
     .digest('base64');
-  const res = await fetch(`${IR}/auth`, {
+  const res = await fetch('https://oauth.iracing.com/oauth2/token', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ email: IRACING_EMAIL, password: hash }),
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({
+      grant_type: 'password_limited',
+      client_id: IRACING_CLIENT_ID,
+      client_secret: IRACING_CLIENT_SECRET,
+      username: IRACING_EMAIL,
+      password: masked,
+      scope: 'iracing.auth',
+    }),
   });
-  rememberCookies(res);
   const body = await res.json().catch(() => ({}));
-  if (!res.ok || body.authcode === 0 || body.authcode === undefined && !cookies) {
-    throw new Error(`iRacing login failed (${res.status}): ${JSON.stringify(body).slice(0, 300)} — is Legacy Read-Only Authentication enabled on the account?`);
+  if (!res.ok || !body.access_token) {
+    throw new Error(`iRacing OAuth login failed (${res.status}): ${JSON.stringify(body).slice(0, 300)} — check client_id/client_secret and that this username is pre-registered for the password_limited grant.`);
   }
-  console.log('iRacing: logged in.');
+  accessToken = body.access_token; // valid ~600s, plenty for one run
+  console.log('iRacing: logged in (OAuth).');
 }
 
 async function irGet(path) {
   // Data API responds with a { link } envelope pointing at a signed S3 URL.
-  const res = await fetch(`${IR}${path}`, { headers: { Cookie: cookies } });
-  rememberCookies(res);
+  const res = await fetch(`${IR}${path}`, { headers: { Authorization: `Bearer ${accessToken}` } });
   if (res.status === 429) {
     console.log('Rate limited, waiting 30s…');
     await new Promise(r => setTimeout(r, 30000));
