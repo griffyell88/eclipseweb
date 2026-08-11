@@ -3,11 +3,10 @@
 # portal's driver DB (Supabase). See scripts/sync-iratings.mjs for setup.
 #
 # INERT until these repo secrets exist (Settings → Secrets → Actions):
-#   IRACING_EMAIL · IRACING_PASSWORD · IRACING_CLIENT_ID · IRACING_CLIENT_SECRET
-#   SUPABASE_URL · SUPABASE_SERVICE_ROLE_KEY
-# NOTE: the iRacing client_id/secret come from iRacing OAuth client
-# registration (currently PAUSED by iRacing as of Aug 2026 — see the note in
-# scripts/sync-iratings.mjs).
+#   IRACING_EMAIL · IRACING_PASSWORD · SUPABASE_URL · SUPABASE_SERVICE_ROLE_KEY
+# Optional (preferred auth once iRacing reopens OAuth client registration):
+#   IRACING_CLIENT_ID · IRACING_CLIENT_SECRET
+# See the auth notes in scripts/sync-iratings.mjs.
 
 name: Sync iRatings
 
@@ -26,7 +25,7 @@ jobs:
       - name: Skip if secrets not configured
         id: gate
         run: |
-          if [ -z "${{ secrets.IRACING_EMAIL }}" ] || [ -z "${{ secrets.IRACING_CLIENT_ID }}" ] || [ -z "${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}" ]; then
+          if [ -z "${{ secrets.IRACING_EMAIL }}" ] || [ -z "${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}" ]; then
             echo "configured=false" >> "$GITHUB_OUTPUT"
             echo "Secrets not set — skipping (this is fine until you enable the sync)."
           else
