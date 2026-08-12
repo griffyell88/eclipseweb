@@ -62,6 +62,29 @@ do $$ begin
   alter publication supabase_realtime add table signups;
 exception when duplicate_object then null; end $$;
 
+-- Signups display REAL names: Discord only supplies usernames, so each new
+-- signup pulls the driver's real name from the Driver Info board (matched on
+-- Discord username) before it's stored.
+create or replace function resolve_driver_name() returns trigger
+language plpgsql security definer set search_path = public as $$
+declare real_name text;
+begin
+  select d->>'name' into real_name
+  from portal_docs p, jsonb_array_elements(p.data) d
+  where p.key = 'driver_db'
+    and lower(trim(d->>'discord')) = lower(trim(new.discord_username))
+    and coalesce(d->>'name', '') <> ''
+  limit 1;
+  if real_name is not null then
+    new.driver_name := real_name;
+  end if;
+  return new;
+end $$;
+
+drop trigger if exists signups_resolve_name on signups;
+create trigger signups_resolve_name before insert on signups
+  for each row execute function resolve_driver_name();
+
 -- ── PORTAL DOCS (schedules / lineups / driver DB) ───────────────────────────
 -- driver_db is ADMIN-ONLY, enforced here — drivers can't read it even with
 -- the API, which is the whole point of moving it out of portal-data.js.
