@@ -33,6 +33,27 @@ language sql stable security definer set search_path = public as $$
   select exists (select 1 from admins a where a.discord_username = current_discord());
 $$;
 
+-- ── SERVER-SIDE MEMBERSHIP GATE ─────────────────────────────────────────────
+-- guild_members mirrors the Discord server's member list (synced by
+-- scripts/sync-tickets.mjs every 30 min). is_member() fails OPEN while the
+-- table is empty and enforces once populated. The browser-side guild check
+-- in portal.jsx is best-effort only — this is the real lock.
+create table if not exists guild_members (
+  user_id text primary key,
+  username text not null,
+  synced_at timestamptz not null default now()
+);
+alter table guild_members enable row level security;
+
+create or replace function is_member() returns boolean
+language sql stable security definer set search_path = public as $$
+  select (not exists (select 1 from guild_members))
+      or is_admin()
+      or exists (select 1 from guild_members g where g.username = current_discord())
+      or exists (select 1 from guild_members g
+                 where g.user_id = coalesce(auth.jwt() -> 'user_metadata' ->> 'provider_id', ''));
+$$;
+
 -- ── SIGNUPS ─────────────────────────────────────────────────────────────────
 create table if not exists signups (
   id bigint generated always as identity primary key,
@@ -49,13 +70,13 @@ create table if not exists signups (
 );
 alter table signups enable row level security;
 drop policy if exists "read signups" on signups;
-create policy "read signups" on signups for select to authenticated using (true);
+create policy "read signups" on signups for select to authenticated using (is_member());
 drop policy if exists "insert own signup" on signups;
 create policy "insert own signup" on signups for insert to authenticated
-  with check (user_id = auth.uid());
+  with check (user_id = auth.uid() and is_member());
 drop policy if exists "delete own or admin" on signups;
 create policy "delete own or admin" on signups for delete to authenticated
-  using (user_id = auth.uid() or is_admin());
+  using ((user_id = auth.uid() and is_member()) or is_admin());
 
 -- live updates for everyone with the portal open
 do $$ begin
@@ -85,6 +106,25 @@ drop trigger if exists signups_resolve_name on signups;
 create trigger signups_resolve_name before insert on signups
   for each row execute function resolve_driver_name();
 
+-- Board edits propagate: fixing a driver's name/discord on the Driver Info
+-- board corrects their existing signups on publish.
+create or replace function backfill_signup_names() returns trigger
+language plpgsql security definer set search_path = public as $$
+begin
+  update signups s
+  set driver_name = d->>'name'
+  from jsonb_array_elements(new.data) d
+  where lower(trim(d->>'discord')) = lower(trim(s.discord_username))
+    and coalesce(d->>'name', '') <> ''
+    and s.driver_name is distinct from d->>'name';
+  return new;
+end $$;
+
+drop trigger if exists driverdb_backfill_names on portal_docs;
+create trigger driverdb_backfill_names after insert or update on portal_docs
+  for each row when (new.key = 'driver_db') execute function backfill_signup_names();
+
+
 -- ── PORTAL DOCS (schedules / lineups / driver DB) ───────────────────────────
 -- driver_db is ADMIN-ONLY, enforced here — drivers can't read it even with
 -- the API, which is the whole point of moving it out of portal-data.js.
@@ -97,7 +137,7 @@ create table if not exists portal_docs (
 alter table portal_docs enable row level security;
 drop policy if exists "read docs" on portal_docs;
 create policy "read docs" on portal_docs for select to authenticated
-  using (key <> 'driver_db' or is_admin());
+  using (is_member() and (key <> 'driver_db' or is_admin()));
 drop policy if exists "admin insert docs" on portal_docs;
 create policy "admin insert docs" on portal_docs for insert to authenticated
   with check (is_admin());

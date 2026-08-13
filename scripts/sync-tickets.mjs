@@ -11,7 +11,9 @@
 // SETUP (one-time):
 //   1. Create the reader bot (it's just a token — nothing to host):
 //      discord.com/developers/applications → New Application ("Eclipse Board
-//      Sync") → Bot → Reset Token → copy it. No privileged intents needed.
+//      Sync") → Bot → Reset Token → copy it. On the same Bot page, turn ON
+//      "Server Members Intent" (needed to read the member list that powers
+//      the server-side membership gate).
 //   2. Invite it to the Eclipse server: OAuth2 → URL Generator → scope "bot",
 //      permissions "View Channels" + "Read Message History" → open the URL.
 //   3. IMPORTANT: ticket channels are private. Give the bot's role access —
@@ -115,7 +117,49 @@ function mapAnswers(qa) {
   return d;
 }
 
+// ── Guild member roster → guild_members table ────────────────────────────────
+// Drives the SERVER-SIDE membership gate (is_member() in the Aug 13 migration):
+// only Discord accounts in this table can read/write portal data. Requires the
+// "Server Members Intent" toggle ON for the bot (Developer Portal → Bot page) —
+// without it Discord returns 403 and this logs + skips, leaving the table as-is.
+async function syncMembers() {
+  const runStart = new Date().toISOString();
+  const members = [];
+  let after = '0';
+  while (true) {
+    let page;
+    try {
+      page = await dGet(`/guilds/${DISCORD_GUILD_ID}/members?limit=1000&after=${after}`);
+    } catch (e) {
+      console.log(`Member sync skipped (${e.message.slice(0, 120)}) — is "Server Members Intent" enabled on the bot?`);
+      return;
+    }
+    members.push(...page);
+    if (page.length < 1000) break;
+    after = page[page.length - 1].user.id;
+  }
+  const rows = members
+    .filter(m => m.user && !m.user.bot)
+    .map(m => ({ user_id: m.user.id, username: String(m.user.username || '').toLowerCase(), synced_at: runStart }));
+  if (rows.length === 0) { console.log('Member sync: 0 members returned — leaving guild_members untouched.'); return; }
+  const up = await fetch(`${SUPABASE_URL}/rest/v1/guild_members?on_conflict=user_id`, {
+    method: 'POST',
+    headers: { ...sbHeaders, Prefer: 'resolution=merge-duplicates,return=minimal' },
+    body: JSON.stringify(rows),
+  });
+  if (!up.ok) {
+    console.log(`Member sync write failed (${up.status}): ${(await up.text()).slice(0, 150)} — did you run portal-migration-2026-08-13.sql?`);
+    return;
+  }
+  // Drop members who left the server (rows not touched this run)
+  await fetch(`${SUPABASE_URL}/rest/v1/guild_members?synced_at=lt.${encodeURIComponent(runStart)}`, {
+    method: 'DELETE', headers: sbHeaders,
+  });
+  console.log(`Member sync: ${rows.length} members in the gate.`);
+}
+
 async function main() {
+  await syncMembers();
   // 1. Load driver_db + ingest ledger from Supabase
   const docs = await fetch(`${SUPABASE_URL}/rest/v1/portal_docs?key=in.(driver_db,ticket_ingest)&select=key,data`, { headers: sbHeaders }).then(r => r.json());
   const db = docs.find(r => r.key === 'driver_db')?.data;
