@@ -5,6 +5,11 @@ window.EC_DATA = {
     platform: "iRacing",
     ig: "@eclipse_competition",
     igUrl: "https://instagram.com/eclipse_competition",
+    // Instagram section: paste full post/reel URLs here and the site renders
+    // them as official Instagram embeds (no login, no API key). 3 or 6 looks
+    // best. Leave empty to show just the follow banner.
+    // e.g. "https://www.instagram.com/p/ABC123xyz/"
+    igPosts: [],
     discord: "https://discord.gg/CBtQMmcksE",
     // TODO Griffin: drop the team's partnership inbox in here and the contact
     // section will render an email button automatically. Leave "" to hide it.
@@ -13,9 +18,9 @@ window.EC_DATA = {
   // Ribbon: bump `id` every time this copy changes, otherwise anyone who
   // dismissed the previous ribbon will never see the new one.
   latest: {
-    id: "road-america-6h-2026",
-    title: "Road America 6 Hour",
-    detail: "Argyros · Moss",
+    id: "defabis-talladega-2026",
+    title: "Talladega Race Winner",
+    detail: "Tanner DeFabis",
   },
   stats: [
     { n: "10+", l: "Endurance Race Wins" },
@@ -27,10 +32,12 @@ window.EC_DATA = {
   ],
   // size: "wide" = full-width banner · "half" = two columns · omitted = 4/5 card
   // pos:  object-position override, for crops that need steering
+  // video: optional — the lightbox plays this clip instead of showing the image
   trophies: [
-    { year: "2026", title: "Road America 6 Hour · P1", class: "LMP2",              drivers: "G3 Argyros · Tristan Moss",           img: "assets/win-road-america-6h-lmp2.webp",  tag: "LATEST RESULT", size: "wide" },
+    { year: "2026", title: "Talladega Race Winner",    class: "FIS Season 9",       drivers: "Tanner DeFabis",                      img: "assets/win-fis-talladega-defabis.webp", video: "assets/dega-last-lap.mp4", videoLabel: "Watch the last lap", tag: "LATEST RESULT", size: "wide", pos: "center 40%" },
+    { year: "2026", title: "Road America 6 Hour · P1", class: "LMP2",              drivers: "G3 Argyros · Tristan Moss",           img: "assets/win-road-america-6h-lmp2.webp",  tag: "RACE WIN",      size: "half" },
     { year: "2026", title: "Brickyard 400 Winner",     class: "NASCAR Cup",         drivers: "Tristan Moss",                        img: "assets/win-brickyard-400-moss.webp",    tag: "SPECIAL EVENT", size: "half" },
-    { year: "2026", title: "Pocono Race Winner",       class: "FIS Round 2",        drivers: "Tanner DeFabis",                      img: "assets/win-fis-r2-pocono-defabis.webp", tag: "RACE WIN",      size: "half" },
+    { year: "2026", title: "Pocono Race Winner",       class: "FIS Round 2",        drivers: "Tanner DeFabis",                      img: "assets/win-fis-r2-pocono-defabis.webp", tag: "RACE WIN" },
     { year: "2025", title: "Majors 24 Hours of Le Mans", class: "GTP · Hypercar",   drivers: "Sherlock · Papasavvas · Costello · McDougall", img: "assets/win-lemans-majors.webp", tag: "GRAND SLAM" },
     { year: "2026", title: "FSS Champion",             class: "Formula Sim Series", drivers: "Michael Costello",                    img: "assets/win-fss-champion-costello.webp", tag: "CHAMPIONSHIP" },
     { year: "2025", title: "Daytona 24 Winner",        class: "GTP",                drivers: "Moss · Sherlock · Fairbairn · Smartt", img: "assets/win-daytona-24.webp",           tag: "SPECIAL EVENT" },

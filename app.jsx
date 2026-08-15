@@ -221,8 +221,20 @@ function TrophyLightbox({ trophy, onClose }) {
   return (
     <div className="lightbox" role="dialog" aria-modal="true" aria-label={trophy.title}
          onClick={onClose}>
-      <img src={trophy.img} alt={`${trophy.title} — ${trophy.class}, ${trophy.drivers}`}
-           onClick={(e) => e.stopPropagation()} />
+      {trophy.video ? (
+        <video
+          src={trophy.video}
+          poster={trophy.img}
+          controls
+          autoPlay
+          playsInline
+          aria-label={`${trophy.title} — ${trophy.class}, ${trophy.drivers}`}
+          onClick={(e) => e.stopPropagation()}
+        />
+      ) : (
+        <img src={trophy.img} alt={`${trophy.title} — ${trophy.class}, ${trophy.drivers}`}
+             onClick={(e) => e.stopPropagation()} />
+      )}
       <div className="lb-meta">
         <div className="lb-title">{trophy.title}</div>
         <div className="lb-sub">{trophy.year} · {trophy.class} · {trophy.drivers}</div>
@@ -242,7 +254,7 @@ function Accolades() {
             <div className="num">/ 02</div>
             <h2>By the Numbers</h2>
           </div>
-          <div className="tag">Updated Jul 2026</div>
+          <div className="tag">Updated Aug 2026</div>
         </div>
         <div className="stats-grid">
           {D.stats.map((s, i) => (
@@ -278,6 +290,7 @@ function Accolades() {
               />
               <div className="t-overlay" />
               <div className="t-year">{t.year} · {t.class}</div>
+              {t.video && <span className="t-play">▶ {t.videoLabel || 'Watch the clip'}</span>}
               <div className="t-meta">
                 <span className="t-tag">{t.tag}</span>
                 <div className="t-title">{t.title}</div>
@@ -710,6 +723,72 @@ function Sponsors() {
   );
 }
 
+function InstagramFeed() {
+  const posts = D.brand.igPosts || [];
+
+  // Instagram's official embed script: load it once after the blockquotes are
+  // in the DOM, then ask it to hydrate them. Re-runs safely if already loaded.
+  useEffect(() => {
+    if (posts.length === 0) return;
+    const process = () => window.instgrm && window.instgrm.Embeds.process();
+    if (window.instgrm) { process(); return; }
+    const s = document.createElement('script');
+    s.src = 'https://www.instagram.com/embed.js';
+    s.async = true;
+    s.onload = process;
+    document.body.appendChild(s);
+  }, [posts.length]);
+
+  return (
+    <section className="section-dark ig-sec" id="instagram" data-screen-label="07b Instagram">
+      <div className="wrap">
+        <div className="sec-head">
+          <div>
+            <div className="num">/ 07.5</div>
+            <h2>On Instagram</h2>
+          </div>
+          <div className="tag">{D.brand.ig}</div>
+        </div>
+
+        {posts.length > 0 && (
+          <div className="ig-grid">
+            {posts.map((url, i) => (
+              <blockquote
+                key={url}
+                className="instagram-media"
+                data-instgrm-permalink={url}
+                data-instgrm-version="14"
+              >
+                {/* Fallback link if embed.js is blocked (ad blockers etc.) */}
+                <a href={url} target="_blank" rel="noopener noreferrer">View this post on Instagram</a>
+              </blockquote>
+            ))}
+          </div>
+        )}
+
+        <div className="ig-band">
+          <div className="ig-band-left">
+            <span className="ig-glyph" aria-hidden="true">
+              <svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" strokeWidth="1.8">
+                <rect x="3" y="3" width="18" height="18" rx="5" />
+                <circle cx="12" cy="12" r="4.2" />
+                <circle cx="17.2" cy="6.8" r="1.2" fill="currentColor" stroke="none" />
+              </svg>
+            </span>
+            <div>
+              <div className="ig-band-title">Race wins, liveries and paddock content</div>
+              <div className="ig-band-sub">Follow the team on Instagram · {D.brand.ig}</div>
+            </div>
+          </div>
+          <a className="btn btn-primary" href={D.brand.igUrl} target="_blank" rel="noopener noreferrer">
+            Follow →
+          </a>
+        </div>
+      </div>
+    </section>
+  );
+}
+
 function Contact() {
   return (
     <section className="contact-sec" id="contact" data-screen-label="08 Contact">
@@ -797,7 +876,7 @@ function Footer() {
             <h3>Connect</h3>
             <ul>
               <li><a href={D.brand.discord} target="_blank" rel="noopener noreferrer">Discord · Join the Server</a></li>
-              <li><a href={D.brand.igUrl} target="_blank" rel="noopener noreferrer">Instagram · {D.brand.ig}</a></li>
+              <li><a href="#instagram">Instagram · {D.brand.ig}</a></li>
               <li><a href="#join">Join Academy</a></li>
               <li><a href="#contact">Partner with Us</a></li>
             </ul>
@@ -842,6 +921,7 @@ function App() {
       <Gallery />
       <Academy />
       <Sponsors />
+      <InstagramFeed />
       <Contact />
       <Footer />
       {editModeActive && (

@@ -1,1 +1,4 @@
 .DS_Store
+# Raw video drops — too big for GitHub (100MB cap). Web-ready versions live in assets/.
+media/*.mp4
+media/*.mov
