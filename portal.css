@@ -336,6 +336,24 @@
 .pt-add-round { margin-top: 10px; }
 .pt-add-series { align-self: flex-start; }
 .pt-sched-ops { display: flex; gap: 6px; align-items: center; }
+
+/* ── Publish feedback + concurrent-edit warning ── */
+.pt-stamp {
+  font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase;
+  color: var(--ec-mute); white-space: nowrap;
+}
+.pt-stamp[data-state="ok"]     { color: var(--ec-accent-text); }
+.pt-stamp[data-state="err"]    { color: var(--ec-red); }
+.pt-stamp[data-state="saving"] { color: var(--ec-light-2); }
+.pt-conflict {
+  display: flex; justify-content: space-between; align-items: center;
+  gap: 16px; flex-wrap: wrap;
+  background: var(--ec-bg-2); border: 1px solid var(--ec-accent);
+  border-left-width: 3px; padding: 12px 16px; font-size: 13px; line-height: 1.5;
+  margin-bottom: 24px;
+}
+.pt-conflict[data-kind="err"] { border-color: var(--ec-red); }
+.pt-conflict-ops { display: flex; gap: 8px; flex-shrink: 0; }
 .pt-sched-controls { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; padding-bottom: 6px; }
 
 /* ============ LINEUP CARS ============ */

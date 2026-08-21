@@ -8,7 +8,7 @@
 //    team-wide in the database, admin edits publish for everyone on "Done
 //    editing", the driver DB is served ONLY to admins (enforced server-side by
 //    supabase-setup.sql), and signups announce to Discord via webhook.
-const { useState, useEffect, useMemo } = React;
+const { useState, useEffect, useMemo, useRef } = React;
 const P = window.EC_PORTAL;
 const CFG = window.EC_CONFIG || {};
 const LIVE = !!(CFG.SUPABASE_URL && CFG.SUPABASE_ANON_KEY && window.supabase);
@@ -123,6 +123,21 @@ function soonest(evs) {
 }
 const ISO_RE = /^\d{4}-\d{2}-\d{2}$/;
 
+// portal_docs.key  ↔  the key it lands on in `ov`. Kept in one place so the
+// loader, the realtime handler and publish() can't drift apart.
+const DOC_KEY = { schedules: 'schedules', lineups: 'lineups', driver_db: 'driverDB', events: 'events' };
+const DB_KEY  = { schedules: 'schedules', lineups: 'lineups', driverDB: 'driver_db', events: 'events' };
+const DOC_LABEL = {
+  schedules: 'the schedules', events: 'the events list',
+  lineups: 'the lineups', driverDB: 'the driver database',
+};
+
+function fmtStamp(iso) {
+  const d = new Date(iso);
+  if (!iso || isNaN(d)) return '';
+  return d.toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
+}
+
 function copyText(text) {
   if (navigator.clipboard && navigator.clipboard.writeText) return navigator.clipboard.writeText(text);
   const ta = document.createElement('textarea');
@@ -139,6 +154,22 @@ function ExportBtn({ data, label }) {
         setDone(true); setTimeout(() => setDone(false), 1600);
       });
     }}>{done ? 'Copied ✓' : (label || 'Export JSON')}</button>
+  );
+}
+
+// Publish feedback: "did that actually save?" — plus who last touched this doc.
+// LIVE only; in build mode nothing is published anywhere.
+function PublishStamp({ pub }) {
+  if (!LIVE || !pub) return null;
+  const { state, meta } = pub;
+  if (state === 'saving') return <span className="pt-stamp mono" data-state="saving">Publishing…</span>;
+  if (state === 'err')    return <span className="pt-stamp mono" data-state="err">Publish failed — not saved</span>;
+  if (state === 'ok' && !(meta && meta.at)) return <span className="pt-stamp mono" data-state="ok">Published ✓</span>;
+  if (!(meta && meta.at)) return null;
+  return (
+    <span className="pt-stamp mono" data-state={state === 'ok' ? 'ok' : undefined}>
+      {state === 'ok' ? 'Published ✓' : 'Last published'} {fmtStamp(meta.at)}{meta.by ? ` · ${meta.by}` : ''}
+    </span>
   );
 }
 
@@ -447,8 +478,9 @@ function EventEditCard({ ev, i, count, ops }) {
   );
 }
 
-function Events({ user, isAdmin, api, ov, patchOv, publish }) {
+function Events({ user, isAdmin, api, ov, patchOv, publish, pub, lock }) {
   const [editing, setEditing] = useState(false);
+  useEffect(() => () => lock.end(), []);
   const all = allEvents(ov);
   const evs = liveEvents(ov);
   const hasOverride = !!ov.events;
@@ -488,7 +520,8 @@ function Events({ user, isAdmin, api, ov, patchOv, publish }) {
     classes: ['GT3'], mode: 'admin', status: 'open', entries: [],
   }));
   const sortByDate = () => mutate(es => es.sort((a, b) => (a.end || '9999').localeCompare(b.end || '9999')));
-  const doneEditing = () => { setEditing(false); publish('events'); };
+  const startEditing = () => { lock.begin('events'); setEditing(true); };
+  const doneEditing = async () => { if (await publish('events') !== false) setEditing(false); };
 
   return (
     <div className="pt-panel">
@@ -505,7 +538,8 @@ function Events({ user, isAdmin, api, ov, patchOv, publish }) {
               )}
               {editing && <button className="pt-mini-btn" onClick={addEvent}>+ Add event</button>}
               {editing && <button className="pt-mini-btn" onClick={sortByDate}>Sort by date</button>}
-              <button className="pt-subtab" data-active={editing} onClick={() => editing ? doneEditing() : setEditing(true)}>
+              <PublishStamp pub={pub} />
+              <button className="pt-subtab" data-active={editing} onClick={() => editing ? doneEditing() : startEditing()}>
                 {editing ? (LIVE ? 'Done — publish' : 'Done editing') : 'Edit events'}
               </button>
             </>
@@ -540,9 +574,10 @@ function Events({ user, isAdmin, api, ov, patchOv, publish }) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-function Schedule({ isAdmin, ov, patchOv, publish }) {
+function Schedule({ isAdmin, ov, patchOv, publish, pub, lock }) {
   const [showPast, setShowPast] = useState(false);
   const [editing, setEditing] = useState(false);
+  useEffect(() => () => lock.end(), []);
   const schedules = ov.schedules || P.schedules;
 
   const mutate = (fn) => {
@@ -581,7 +616,8 @@ function Schedule({ isAdmin, ov, patchOv, publish }) {
     [s[si], s[j]] = [s[j], s[si]];
   });
   const hasOverride = !!ov.schedules;
-  const doneEditing = () => { setEditing(false); publish('schedules'); };
+  const startEditing = () => { lock.begin('schedules'); setEditing(true); };
+  const doneEditing = async () => { if (await publish('schedules') !== false) setEditing(false); };
 
   return (
     <div className="pt-panel">
@@ -596,7 +632,8 @@ function Schedule({ isAdmin, ov, patchOv, publish }) {
                   if (window.confirm('Discard local schedule edits and go back to what portal-data.js says?')) patchOv({ schedules: undefined });
                 }}>Reset to file</button>
               )}
-              <button className="pt-subtab" data-active={editing} onClick={() => editing ? doneEditing() : setEditing(true)}>
+              <PublishStamp pub={pub} />
+              <button className="pt-subtab" data-active={editing} onClick={() => editing ? doneEditing() : startEditing()}>
                 {editing ? (LIVE ? 'Done — publish' : 'Done editing') : 'Edit schedules'}
               </button>
             </>
@@ -690,14 +727,16 @@ function Schedule({ isAdmin, ov, patchOv, publish }) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-function Rosters({ api, isAdmin, ov, patchOv, publish }) {
+function Rosters({ api, isAdmin, ov, patchOv, publish, pub, lock }) {
   const [editing, setEditing] = useState(false);
+  useEffect(() => () => lock.end(), []);
   const openEvents = liveEvents(ov).filter(e => e.status === 'open');
   const lineups = ov.lineups || {};
   const getLineup = (ev) => lineups[ev.id] || ev.lineup || {};
   const setLineup = (ev, lu) => patchOv({ lineups: { ...lineups, [ev.id]: lu } });
   const db = ov.driverDB || P.driverDB || [];
-  const doneEditing = () => { setEditing(false); publish('lineups'); };
+  const startEditing = () => { lock.begin('lineups'); setEditing(true); };
+  const doneEditing = async () => { if (await publish('lineups') !== false) setEditing(false); };
 
   const carOps = (ev, cls) => {
     const lu = getLineup(ev);
@@ -722,8 +761,9 @@ function Rosters({ api, isAdmin, ov, patchOv, publish }) {
         <h2 className="pt-h2">Rosters</h2>
         <div className="pt-sched-controls">
           {isAdmin && ov.lineups && !LIVE && <ExportBtn data={ov.lineups} label="Export lineups" />}
+          {isAdmin && <PublishStamp pub={pub} />}
           {isAdmin && (
-            <button className="pt-subtab" data-active={editing} onClick={() => editing ? doneEditing() : setEditing(true)}>
+            <button className="pt-subtab" data-active={editing} onClick={() => editing ? doneEditing() : startEditing()}>
               {editing ? (LIVE ? 'Done — publish' : 'Done editing') : 'Edit lineups'}
             </button>
           )}
@@ -892,7 +932,7 @@ function LicBadge({ v }) {
   return <span className="pt-lic mono" data-lic={s[0].toUpperCase()}>{s}</span>;
 }
 
-function DriverInfo({ ov, patchOv, publish }) {
+function DriverInfo({ ov, patchOv, publish, pub, lock }) {
   const [sort, setSort] = useState({ key: null, dir: 1 });
   const [filters, setFilters] = useState({});
   const [editing, setEditing] = useState(false);
@@ -907,7 +947,9 @@ function DriverInfo({ ov, patchOv, publish }) {
     }
   };
   const addRow = () => { setFilters({}); setSort({ key: null, dir: 1 }); write([{ ...EMPTY_DRIVER, status: 'Trial' }, ...db]); };
-  const doneEditing = () => { setEditing(false); publish('driverDB'); };
+  const startEditing = () => { lock.begin('driverDB'); setEditing(true); };
+  const doneEditing = async () => { if (await publish('driverDB') !== false) setEditing(false); };
+  useEffect(() => () => lock.end(), []);
 
   const clickSort = (key) => setSort(s => s.key === key ? (s.dir === 1 ? { key, dir: -1 } : { key: null, dir: 1 }) : { key, dir: 1 });
 
@@ -959,7 +1001,8 @@ function DriverInfo({ ov, patchOv, publish }) {
             }}>Reset to file</button>
           )}
           {editing && <button className="pt-mini-btn" onClick={addRow}>+ Add driver</button>}
-          <button className="pt-subtab" data-active={editing} onClick={() => editing ? doneEditing() : setEditing(true)}>
+          <PublishStamp pub={pub} />
+          <button className="pt-subtab" data-active={editing} onClick={() => editing ? doneEditing() : startEditing()}>
             {editing ? (LIVE ? 'Done — publish' : 'Done editing') : 'Edit'}
           </button>
         </div>
@@ -1123,20 +1166,74 @@ function Portal({ user, onLogout }) {
 
   // ── Docs: localStorage overrides (build) or portal_docs table (live) ───────
   const [ov, setOv] = useState(() => (LIVE ? {} : loadOverrides()));
+  const [docMeta, setDocMeta] = useState({});    // ov key → { at, by }
+  const [pubState, setPubState] = useState({});  // ov key → 'saving' | 'ok' | 'err'
+  const [docsErr, setDocsErr] = useState(false);
+  const [conflict, setConflict] = useState(null); // ov key someone else just published
+  const remoteRef = useRef({});   // last server copy, so "load theirs" has something to load
+  const baseRef = useRef({});     // updated_at each doc had when we opened its editor
+  const editKeyRef = useRef(null); // ov key currently open in an editor, if any
+
+  const fetchDocs = async () => {
+    const { data, error } = await sb.from('portal_docs').select('key,data,updated_at,updated_by');
+    // A failed fetch used to fall through silently and leave everyone reading the
+    // baked-in portal-data.js copy with no sign it was stale. Now it says so.
+    if (error || !data) { setDocsErr(true); return null; }
+    setDocsErr(false);
+    const docs = {}, meta = {};
+    for (const r of data) {
+      const k = DOC_KEY[r.key];
+      if (!k) continue;
+      docs[k] = r.data;
+      meta[k] = { at: r.updated_at, by: r.updated_by };
+    }
+    remoteRef.current = docs;
+    setDocMeta(meta);
+    return { docs, meta };
+  };
+
+  // Docs are shared state between several admins, so they get the same live
+  // subscription signups have. Without it an admin who had the portal open
+  // published a stale copy straight over someone else's work.
+  // NOTE: needs portal_docs in the supabase_realtime publication —
+  // portal-migration-2026-08-21.sql.
   useEffect(() => {
     if (!LIVE) return;
-    sb.from('portal_docs').select('key,data').then(({ data }) => {
-      if (!data) return;
-      const m = {};
-      for (const r of data) {
-        if (r.key === 'schedules') m.schedules = r.data;
-        if (r.key === 'lineups') m.lineups = r.data;
-        if (r.key === 'driver_db') m.driverDB = r.data;
-        if (r.key === 'events') m.events = r.data;
-      }
-      setOv(m);
-    });
+    let alive = true;
+    fetchDocs().then(res => { if (alive && res) setOv(res.docs); });
+    const ch = sb.channel('docs-live')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'portal_docs' }, async (payload) => {
+        const changed = DOC_KEY[(payload.new && payload.new.key) || (payload.old && payload.old.key)];
+        const res = await fetchDocs();
+        if (!alive || !res) return;
+        const busy = editKeyRef.current;
+        // Never yank a form out from under whoever is typing in it — warn instead.
+        if (busy && busy === changed) { setConflict(changed); return; }
+        setOv(prev => {
+          const next = { ...prev, ...res.docs };
+          if (busy) next[busy] = prev[busy];
+          return next;
+        });
+      })
+      .subscribe();
+    return () => { alive = false; sb.removeChannel(ch); };
   }, [user.id]);
+
+  const lock = {
+    begin: (key) => {
+      editKeyRef.current = key;
+      baseRef.current[key] = (docMeta[key] || {}).at;
+      setConflict(null);
+      setPubState(st => ({ ...st, [key]: undefined }));
+    },
+    end: () => { editKeyRef.current = null; },
+  };
+  const takeTheirs = () => {
+    if (!conflict) return;
+    setOv(prev => ({ ...prev, [conflict]: remoteRef.current[conflict] }));
+    baseRef.current[conflict] = (docMeta[conflict] || {}).at;
+    setConflict(null);
+  };
 
   const patchOv = (patch) => setOv(prev => {
     const next = { ...prev, ...patch };
@@ -1145,18 +1242,49 @@ function Portal({ user, onLogout }) {
     return next;
   });
 
+  // Returns false when nothing was written, so the tab can keep you in the
+  // editor with your changes instead of silently dropping out of edit mode.
   const publish = async (key) => {
-    if (!LIVE) return;
-    const dbKey = key === 'driverDB' ? 'driver_db' : key;
-    const payload = key === 'schedules' ? ov.schedules
-                  : key === 'lineups' ? (ov.lineups || {})
-                  : key === 'events' ? ov.events
-                  : ov.driverDB;
-    if (payload === undefined || payload === null) return;
+    editKeyRef.current = null;
+    if (!LIVE) return true;
+    const dbKey = DB_KEY[key];
+    const payload = key === 'lineups' ? (ov.lineups || {}) : ov[key];
+    if (payload === undefined || payload === null) return true;
+    setPubState(st => ({ ...st, [key]: 'saving' }));
+
+    // Belt and braces for the realtime warning above: if the socket was down,
+    // check the server's stamp before overwriting whatever is there now.
+    const { data: cur } = await sb.from('portal_docs')
+      .select('updated_at,updated_by').eq('key', dbKey).maybeSingle();
+    const base = baseRef.current[key];
+    if (cur && base && cur.updated_at !== base) {
+      const ok = window.confirm(
+        `${cur.updated_by || 'Another admin'} published a newer version of ${DOC_LABEL[key] || 'this'} ` +
+        `on ${fmtStamp(cur.updated_at)}.\n\nPublishing yours will overwrite theirs. Continue?`);
+      if (!ok) {
+        editKeyRef.current = key;          // still editing — keep the guard armed
+        setConflict(key);
+        setPubState(st => ({ ...st, [key]: undefined }));
+        return false;
+      }
+    }
+
+    const at = new Date().toISOString();
     const { error } = await sb.from('portal_docs').upsert({
-      key: dbKey, data: payload, updated_at: new Date().toISOString(), updated_by: user.username,
+      key: dbKey, data: payload, updated_at: at, updated_by: user.username,
     });
-    if (error) window.alert('Publish failed: ' + error.message);
+    if (error) {
+      setPubState(st => ({ ...st, [key]: 'err' }));
+      window.alert('Publish failed — your changes are NOT saved for the team: ' + error.message);
+      editKeyRef.current = key;
+      return false;
+    }
+    baseRef.current[key] = at;
+    setDocMeta(m => ({ ...m, [key]: { at, by: user.username } }));
+    setPubState(st => ({ ...st, [key]: 'ok' }));
+    setConflict(c => (c === key ? null : c));
+    setTimeout(() => setPubState(st => ({ ...st, [key]: undefined })), 6000);
+    return true;
   };
 
   const TABS = [
@@ -1188,12 +1316,33 @@ function Portal({ user, onLogout }) {
         </div>
       </header>
       <main className={"pt-main" + (tab === 'driverinfo' ? ' pt-main--wide' : '')}>
+        {LIVE && docsErr && (
+          <div className="pt-conflict" data-kind="err">
+            <span>
+              <strong>Can't reach the database.</strong> You're seeing the built-in copy from
+              {' '}<span className="mono">portal-data.js</span>, which may be out of date — don't trust these
+              dates. Refresh to retry{isAdmin ? ', and don\'t publish until it loads.' : '.'}
+            </span>
+          </div>
+        )}
+        {conflict && (
+          <div className="pt-conflict">
+            <span>
+              <strong>{(docMeta[conflict] || {}).by || 'Another admin'} just published {DOC_LABEL[conflict]}</strong>
+              {' '}while you've got it open. Publishing yours will overwrite theirs.
+            </span>
+            <span className="pt-conflict-ops">
+              <button className="pt-mini-btn" onClick={takeTheirs}>Load theirs — drops my edits</button>
+              <button className="pt-mini-btn pt-mini-btn--warn" onClick={() => setConflict(null)}>Keep mine</button>
+            </span>
+          </div>
+        )}
         {tab === 'dash'       && <Dashboard user={user} api={api} goto={setTab} isAdmin={isAdmin} ov={ov} />}
-        {tab === 'events'     && <Events user={user} isAdmin={isAdmin} api={api} ov={ov} patchOv={patchOv} publish={publish} />}
-        {tab === 'schedule'   && <Schedule isAdmin={isAdmin} ov={ov} patchOv={patchOv} publish={publish} />}
-        {tab === 'rosters'    && <Rosters api={api} isAdmin={isAdmin} ov={ov} patchOv={patchOv} publish={publish} />}
+        {tab === 'events'     && <Events user={user} isAdmin={isAdmin} api={api} ov={ov} patchOv={patchOv} publish={publish} pub={{ meta: docMeta.events, state: pubState.events }} lock={lock} />}
+        {tab === 'schedule'   && <Schedule isAdmin={isAdmin} ov={ov} patchOv={patchOv} publish={publish} pub={{ meta: docMeta.schedules, state: pubState.schedules }} lock={lock} />}
+        {tab === 'rosters'    && <Rosters api={api} isAdmin={isAdmin} ov={ov} patchOv={patchOv} publish={publish} pub={{ meta: docMeta.lineups, state: pubState.lineups }} lock={lock} />}
         {tab === 'paints'     && <Paints />}
-        {tab === 'driverinfo' && isAdmin && <DriverInfo ov={ov} patchOv={patchOv} publish={publish} />}
+        {tab === 'driverinfo' && isAdmin && <DriverInfo ov={ov} patchOv={patchOv} publish={publish} pub={{ meta: docMeta.driverDB, state: pubState.driverDB }} lock={lock} />}
       </main>
       <footer className="pt-foot mono">
         ECLIPSE COMPETITION · TEAM PORTAL · {LIVE ? 'LIVE' : 'IN DEVELOPMENT — DATA MAY LAG THE DISCORD'}
