@@ -334,6 +334,8 @@
 .pt-round--edit { display: flex; gap: 8px; align-items: center; padding: 6px 0; border-top: 1px solid var(--ec-line); }
 .pt-round--edit .pt-input:last-of-type { flex: 1; }
 .pt-add-round { margin-top: 10px; }
+.pt-add-series { align-self: flex-start; }
+.pt-sched-ops { display: flex; gap: 6px; align-items: center; }
 .pt-sched-controls { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; padding-bottom: 6px; }
 
 /* ============ LINEUP CARS ============ */

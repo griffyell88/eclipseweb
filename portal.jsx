@@ -569,6 +569,17 @@ function Schedule({ isAdmin, ov, patchOv, publish }) {
     arr.splice(k, 0, r);
   });
   const setSeries = (si, field, val) => mutate(s => { s[si][field] = val; });
+  const addSeries = () => mutate(s => s.push({ series: 'New Series', cadence: 'Season · Day · Time ET', rounds: [] }));
+  const delSeries = (si) => {
+    const name = schedules[si]?.series || 'this series';
+    if (!window.confirm(`Delete "${name}" and all of its rounds?`)) return;
+    mutate(s => s.splice(si, 1));
+  };
+  const moveSeries = (si, dir) => mutate(s => {
+    const j = si + dir;
+    if (j < 0 || j >= s.length) return;
+    [s[si], s[j]] = [s[j], s[si]];
+  });
   const hasOverride = !!ov.schedules;
   const doneEditing = () => { setEditing(false); publish('schedules'); };
 
@@ -623,6 +634,13 @@ function Schedule({ isAdmin, ov, patchOv, publish }) {
               ) : (
                 <span className="pt-sched-cad mono">{s.cadence}</span>
               )}
+              {editing && (
+                <div className="pt-sched-ops">
+                  <button className="pt-mini-btn pt-arrow" title="Move series up" disabled={si === 0} onClick={() => moveSeries(si, -1)}>↑</button>
+                  <button className="pt-mini-btn pt-arrow" title="Move series down" disabled={si === schedules.length - 1} onClick={() => moveSeries(si, 1)}>↓</button>
+                  <button className="pt-en-x" title="Delete series" onClick={() => delSeries(si)}>×</button>
+                </div>
+              )}
             </div>
             <div className="pt-sched-rounds">
               {rounds.map((r, j) => {
@@ -653,6 +671,9 @@ function Schedule({ isAdmin, ov, patchOv, publish }) {
               {rounds.length === 0 && !editing && (
                 <div className="pt-empty">Season complete — flip “Show past rounds” to see how it went.</div>
               )}
+              {rounds.length === 0 && editing && (
+                <div className="pt-empty">No rounds yet — add the first one below.</div>
+              )}
               {editing && (
                 <button className="pt-mini-btn pt-add-round" onClick={() => addRound(si)}>+ Add round</button>
               )}
@@ -660,6 +681,10 @@ function Schedule({ isAdmin, ov, patchOv, publish }) {
           </div>
         );
       })}
+
+      {editing && (
+        <button className="pt-mini-btn pt-add-series" onClick={addSeries}>+ Add series</button>
+      )}
     </div>
   );
 }
