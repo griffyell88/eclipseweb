@@ -197,7 +197,7 @@ function Hero() {
 }
 
 function MarqueeStrip() {
-  const items = ["iRacing Official Partner", "Endurance · Formula · GT", "SJS Games Partner", "Setup Shop Coming Soon", "Est. Nov 2023"];
+  const items = ["iRacing Official Partner", "Endurance · Formula · GT", "Setup Shop Coming Soon", "Est. Nov 2023"];
   return (
     <div className="strip">
       <div className="strip-inner">

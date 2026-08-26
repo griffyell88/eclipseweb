@@ -104,12 +104,6 @@ window.EC_DATA = {
       img: "assets/face-tristan-moss.webp",
       bio: "Won the Indy 500 and the Brickyard 400 for Eclipse. Advises on setup across the endurance and Formula programs.",
     },
-    {
-      name: "Sybren Stoel",
-      role: "Partner · Owner, SJS Games",
-      initials: "SS",
-      bio: "Owns SJS Games and has partnered with Eclipse on programs and events for years.",
-    },
   ],
   drivers: [
     { name: "Max Taylor",          note: "IndyNXT Race Winner",   initials: "MT", img: "assets/face-max-taylor.webp",           programs: ["Formula", "GTP"] },
