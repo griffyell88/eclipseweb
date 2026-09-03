@@ -1,7 +1,7 @@
 -- ═══════════════════════════════════════════════════════════════════════════
 -- ECLIPSE PORTAL — SUPABASE SETUP
 -- Paste this entire file into: Supabase Dashboard → SQL Editor → New query → Run
--- Safe to re-run. One thing to edit: the Discord webhook URL near the bottom.
+-- Safe to re-run. Discord feed setup lives in portal-migration-2026-09-03.sql.
 -- ═══════════════════════════════════════════════════════════════════════════
 
 create extension if not exists pg_net;
@@ -153,68 +153,12 @@ insert into portal_docs (key, data) values
 on conflict (key) do nothing;
 
 -- ── DISCORD ANNOUNCEMENTS ───────────────────────────────────────────────────
--- ①  EDIT THIS LINE: paste your channel webhook URL between the quotes.
---    (Discord channel → Edit channel → Integrations → Webhooks → New → Copy URL)
+-- Moved to portal-migration-2026-09-03.sql (live roster embeds per event +
+-- signup pings for the next race, via the `http` extension). The old pg_net
+-- text pings that used to live here are dropped by that migration — do not
+-- re-add them. The webhook URL lives in private.config ('discord_webhook').
 create schema if not exists private;
 create table if not exists private.config (key text primary key, value text);
-insert into private.config (key, value) values
-  ('discord_webhook', 'PASTE_WEBHOOK_URL_HERE')
-on conflict (key) do update set value = excluded.value;
-
-create or replace function notify_signup() returns trigger
-language plpgsql security definer set search_path = public, private, net as $$
-declare url text; msg text;
-begin
-  select value into url from private.config where key = 'discord_webhook';
-  if url is null or url = '' or url = 'PASTE_WEBHOOK_URL_HERE' then
-    return coalesce(new, old);
-  end if;
-  if tg_op = 'INSERT' then
-    msg := '🏁 **' || new.driver_name || '** is ' || upper(new.state) ||
-           ' for **' || new.event_title || '** (' || new.cls || ')';
-  else
-    msg := '↩️ **' || old.driver_name || '** withdrew from **' || old.event_title ||
-           '** (' || old.cls || ')';
-  end if;
-  perform net.http_post(
-    url := url,
-    body := jsonb_build_object('content', msg),
-    headers := '{"Content-Type": "application/json"}'::jsonb
-  );
-  return coalesce(new, old);
-end $$;
-
-drop trigger if exists signups_notify on signups;
-create trigger signups_notify after insert or delete on signups
-  for each row execute function notify_signup();
-
-create or replace function notify_docs() returns trigger
-language plpgsql security definer set search_path = public, private, net as $$
-declare url text; msg text;
-begin
-  select value into url from private.config where key = 'discord_webhook';
-  if url is null or url = '' or url = 'PASTE_WEBHOOK_URL_HERE' then
-    return new;
-  end if;
-  if new.key = 'lineups' then
-    msg := '📋 Event lineups were just updated — check the portal.';
-  elsif new.key = 'events' then
-    msg := '📅 The events list was just updated — check the portal for signups.';
-  else
-    return new;
-  end if;
-  perform net.http_post(
-    url := url,
-    body := jsonb_build_object('content', msg),
-    headers := '{"Content-Type": "application/json"}'::jsonb
-  );
-  return new;
-end $$;
-
-drop trigger if exists lineups_notify on portal_docs;
-drop trigger if exists docs_notify on portal_docs;
-create trigger docs_notify after insert or update on portal_docs
-  for each row when (new.key in ('lineups', 'events')) execute function notify_docs();
 
 -- Done. If this ran without errors you should see 3 rows:
 select key, updated_at from portal_docs order by key;
